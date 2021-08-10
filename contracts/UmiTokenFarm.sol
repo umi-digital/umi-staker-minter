@@ -439,7 +439,7 @@ contract UmiTokenFarm is Context, Ownable, ReentrancyGuard, Pausable {
         address _user,
         uint256 _id,
         uint256 _amount
-    ) internal view isContract(_tokenAddress) returns (uint256, uint256) {
+    ) public view isContract(_tokenAddress) returns (uint256, uint256) {
         uint256 currentBalance = balances[_tokenAddress][_user][_id];
         uint256 amount = _amount == 0 ? currentBalance : _amount;
         uint256 stakeDate = stakeDates[_tokenAddress][_user][_id];

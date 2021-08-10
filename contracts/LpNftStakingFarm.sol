@@ -669,7 +669,7 @@ contract LpNftStakingFarm is
      * @return Return total with interest and time passed.
      */
     function calculateRewardsAndTimePassed(address _user, uint256 _amount)
-        internal
+        public
         view
         returns (uint256, uint256)
     {
