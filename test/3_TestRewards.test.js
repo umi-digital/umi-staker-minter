@@ -21,12 +21,12 @@ contract('TestRewards', async (accounts) => {
     /**
      * calculate rewards by js
      * @param {*} principal principal amount
-     * @param {*} n periods for calculating interest,  24H eq to one period
+     * @param {*} n periods for calculating interest,  1 second eq to one period
      * @param {*} apy annual percentage yield
      * @returns resJs sum of principal and rewards
      */
     function calculateRewardsByJs(principal, n, apy) {
-        var div = apy / 36500; //day rate
+        var div = apy / (36500 * 24 * 60 * 60); //second rate
         var sum = 1 + div
         var pow = Math.pow(sum, n);
         var resJs = pow * principal;
@@ -46,7 +46,7 @@ contract('TestRewards', async (accounts) => {
     describe('Test rewards', async() => {
         it('1st test, 0.00000000001 ether 365 days later', async() => {
             const principal = ether('0.00000000001')
-            const days = 365
+            const days = 365 * 24 * 60 * 60
             let res = await testRewards.calculateRewards(principal, days, APY)
             console.log('1st test calculate rewards by solidity res wei=%s', BN(res).toString());
 
@@ -58,7 +58,7 @@ contract('TestRewards', async (accounts) => {
 
         it('2nd test, 0.01 ether 365 days later', async() => {
             const principal = ether('0.01')
-            const days = 365
+            const days = 365 * 24 * 60 * 60
             let res = await testRewards.calculateRewards(principal, days, APY)
             console.log('2nd test calculate rewards by solidity res wei=%s', BN(res).toString());
 
@@ -70,7 +70,7 @@ contract('TestRewards', async (accounts) => {
 
         it('3rd test, 100 ether 365 days later', async() => {
             const principal = ether('100')
-            const days = 365
+            const days = 365 * 24 * 60 * 60
             let res = await testRewards.calculateRewards(principal, days, APY)
             console.log('3rd test calculate rewards by solidity res wei=%s', BN(res).toString());
 
@@ -82,7 +82,7 @@ contract('TestRewards', async (accounts) => {
 
         it('4th test, 1.05 ether 10 days later', async() => {
             const principal = ether('1.05')
-            const days = 10
+            const days = 10 * 24 * 60 * 60
             let res = await testRewards.calculateRewards(principal, days, APY)
             console.log('4th test calculate rewards by solidity res wei=%s', BN(res).toString());
 
@@ -94,7 +94,7 @@ contract('TestRewards', async (accounts) => {
 
         it('5th test, 100 ether 10 days later', async() => {
             const principal = ether('100')
-            const days = 10
+            const days = 10 * 24 * 60 * 60
             let res = await testRewards.calculateRewards(principal, days, APY)
             console.log('5th test calculate rewards by solidity res wei=%s', BN(res).toString());
 
@@ -106,7 +106,7 @@ contract('TestRewards', async (accounts) => {
 
         it('6th test, 100 ether 2 years later', async() => {
             const principal = ether('100')
-            const days = 730
+            const days = 730 * 24 * 60 * 60
             let res = await testRewards.calculateRewards(principal, days, APY)
             console.log('6th test calculate rewards by solidity res wei=%s', BN(res).toString());
 

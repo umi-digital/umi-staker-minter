@@ -645,27 +645,23 @@ contract NftStakingFarm is
      * @return Return total with interest and time passed.
      */
     function calculateRewardsAndTimePassed(address _user, uint256 _amount)
-        internal
+        public
         view
         returns (uint256, uint256)
     {
         uint256 currentBalance = balances[_user];
         uint256 amount = _amount == 0 ? currentBalance : _amount;
         uint256 stakeDate = stakeDates[_user];
-        // one day seconds
-        uint256 oneDay = 1 days;
         // seconds
         uint256 timePassed = _now().sub(stakeDate);
-        if (timePassed < oneDay) {
-            // if timePassed less than one day, rewards will be 0
+        if (timePassed < 1 seconds) {
+            // if timePassed less than one second, rewards will be 0
             return (amount, timePassed);
         }
         // get total apy of user
         uint256 totalApy = getTotalApyOfUser(_user);
-        // timePassed bigger than one day
-        uint256 _days = timePassed.div(oneDay);
         uint256 totalWithInterest =
-            Calculator.calculator(amount, _days, totalApy);
+            Calculator.calculator(amount, timePassed, totalApy);
         return (totalWithInterest, timePassed);
     }
 

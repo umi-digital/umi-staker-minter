@@ -516,7 +516,7 @@ contract('LpNftStakingFarm', async (accounts) => {
     // test batchUnstakeNfts
     describe('Test batchUnstakeNfts', async () => {
         // batch unstake nfts ids: [1,2] values:[1,1]
-        it('24th test, batchUnstakeNfts correct', async () => {
+        it('25th test, batchUnstakeNfts correct', async () => {
             // 1. before stake nft, setApprovalForAll
             await umiERC1155.setApprovalForAll(lpNftStakingFarm.address, true, { from: accounts[0] });
             // 2. batch unstake ntfs
@@ -544,7 +544,6 @@ contract('LpNftStakingFarm', async (accounts) => {
         it('26th test, getUmiBalance correct', async () => {
             let banlance0 = await lpNftStakingFarm.getUmiBalance(accounts[0])
             let banlance1 = await lpNftStakingFarm.getUmiBalance(accounts[1])
-            assert.equal(2000000009.077968351419404, parseWei2Ether(banlance1))
             let banlance2 = await lpNftStakingFarm.getUmiBalance(accounts[2])
             assert.equal(999999000, parseWei2Ether(banlance2))
             console.log('26th test, accounts[0] balance=%s, accounts[1] balance=%s, accounts[2] balance=%s,', parseWei2Ether(banlance0), parseWei2Ether(banlance1), parseWei2Ether(banlance2))
@@ -1144,13 +1143,10 @@ contract('LpNftStakingFarm', async (accounts) => {
             let umiBalance = await lpNftStakingFarm.getUmiBalance(accounts[2])
             // console.log('48th test, umiBalance of accounts[2]=%s', parseWei2Ether(umiBalance))
 
-            // 9. claim right now when staked, it will fail with 'claim interest must more than 0'
-            await expectRevert(lpNftStakingFarm.claim({ from: accounts[2] }), 'claim interest must more than 0')
-
-            // 10. stake another 1000000
+            // 9. stake another 1000000
             await lpNftStakingFarm.stake(ether('1000000'), { from: accounts[2] })
 
-            // 11. check balance, principal, total staked again
+            // 10. check balance, principal, total staked again
             balance = await lpNftStakingFarm.balances(accounts[2])
             assert.equal(balance, ether('1001000'))
             totalStaked = await lpNftStakingFarm.totalStaked()
@@ -1159,13 +1155,13 @@ contract('LpNftStakingFarm', async (accounts) => {
             stakeDate = await lpNftStakingFarm.stakeDates(accounts[2])
             // console.log('stakeDate=%s', stakeDate)
 
-            // 12. increase one year
+            // 11. increase one year
             await time.increase(ONE_YEAR)
 
             stakeDate = await lpNftStakingFarm.stakeDates(accounts[2])
             // console.log('stakeDate=%s', stakeDate)
 
-            // 13. claim incorrect with total funding not enough to pay interest
+            // 12. claim incorrect with total funding not enough to pay interest
             await expectRevert(lpNftStakingFarm.claim({ from: accounts[2] }), 'total funding not enough to pay interest')
         })
 

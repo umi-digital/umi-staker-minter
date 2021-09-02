@@ -443,19 +443,15 @@ contract UmiTokenFarm is Context, Ownable, ReentrancyGuard, Pausable {
         uint256 currentBalance = balances[_tokenAddress][_user][_id];
         uint256 amount = _amount == 0 ? currentBalance : _amount;
         uint256 stakeDate = stakeDates[_tokenAddress][_user][_id];
-        // one day seconds
-        uint256 oneDay = 1 days;
         // seconds
         uint256 timePassed = _now().sub(stakeDate);
-        if (timePassed < oneDay) {
-            // if timePassed less than one day, rewards will be 0
+        if (timePassed < 1 seconds) {
+            // if timePassed less than one second, rewards will be 0
             return (amount, timePassed);
         }
-        // timePassed bigger than one day
-        uint256 _days = timePassed.div(oneDay);
         // the apy of token
         uint256 apy = getApy(_tokenAddress);
-        uint256 totalWithInterest = Calculator.calculator(amount, _days, apy);
+        uint256 totalWithInterest = Calculator.calculator(amount, timePassed, apy);
         return (totalWithInterest, timePassed);
     }
 
