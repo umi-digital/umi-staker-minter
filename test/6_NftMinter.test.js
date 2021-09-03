@@ -307,4 +307,110 @@ contract('NftMinter', async (accounts) => {
         })
     })
 
+    // test burn
+    describe("Test burn", async () => {
+        beforeEach('mint tokens before burn', async () => {
+            // accounts[0] approve 100 tokens to NftMinter to pay minting fee
+            await umiTokenMock.approve(nftMinter.address, ether('200'), { from: accounts[0] })
+            // before mint, current nft id will be 0
+            let nftId = await nftMinter.getCurrentNftId()
+            assert.equal(nftId, 0)
+            const fees = [[accounts[3], 40], [accounts[4], 60]]
+            // mint twice
+            await nftMinter.mint(accounts[0], fees, 10, '0x11')
+            nftId = await nftMinter.getCurrentNftId()
+            assert.equal(nftId, 1)
+            await nftMinter.mint(accounts[0], fees, 20, '0x11')
+            nftId = await nftMinter.getCurrentNftId()
+            assert.equal(nftId, 2)
+        })
+
+        it('22th test, holder can burn their tokens', async () => {
+            // 1. check nft id
+            let nftId = await nftMinter.getCurrentNftId()
+            assert.equal(nftId, 2)
+            // 2. check balance of token id 1
+            let balanceOfToken1 = await nftMinter.balanceOf(accounts[0], 1)
+            assert.equal(balanceOfToken1, 10)
+            // 3. check balance of token id 2
+            let balanceOfToken2 = await nftMinter.balanceOf(accounts[0], 2)
+            assert.equal(balanceOfToken2, 20)
+            // 4. burn 4 token 1
+            await nftMinter.burn(accounts[0], 1, 4)
+            // 5. check balance of token id 1 again
+            balanceOfToken1 = await nftMinter.balanceOf(accounts[0], 1)
+            assert.equal(balanceOfToken1, 6)
+        })
+
+        it('23th test, unapproved accounts cannot burn the holder\'s tokens', async () => {
+            // accounts[0] is holder
+            await expectRevert(nftMinter.burn(accounts[0], 1, 4, {from: accounts[2]}), 'ERC1155: caller is not owner nor approved')
+        })
+
+        it('24th test, approved operators can burn the holder\'s tokens', async () => {
+            // accounts[0] is holder, accounts[2] is operator
+            await nftMinter.setApprovalForAll(accounts[2], true, { from: accounts[0] })
+            await nftMinter.burn(accounts[0], 1, 5, { from: accounts[2] })
+
+            // check balance of token id 1
+            let balanceOfToken1 = await nftMinter.balanceOf(accounts[0], 1)
+            assert.equal(balanceOfToken1, 5)
+        })
+    })
+
+    // test burnBatch
+    describe("Test burnBatch", async () => {
+        beforeEach('mint tokens before burnBatch', async () => {
+            // accounts[0] approve 100 tokens to NftMinter to pay minting fee
+            await umiTokenMock.approve(nftMinter.address, ether('200'), { from: accounts[0] })
+            // before mint, current nft id will be 0
+            let nftId = await nftMinter.getCurrentNftId()
+            assert.equal(nftId, 0)
+            const fees = [[accounts[3], 40], [accounts[4], 60]]
+            // mint twice
+            await nftMinter.mint(accounts[0], fees, 10, '0x11')
+            nftId = await nftMinter.getCurrentNftId()
+            assert.equal(nftId, 1)
+            await nftMinter.mint(accounts[0], fees, 20, '0x11')
+            nftId = await nftMinter.getCurrentNftId()
+            assert.equal(nftId, 2)
+        })
+
+        it('25th test, holder can burn their tokens', async () => {
+            // 1. check nft id
+            let nftId = await nftMinter.getCurrentNftId()
+            assert.equal(nftId, 2)
+            // 2. check balance of token id 1
+            let balanceOfToken1 = await nftMinter.balanceOf(accounts[0], 1)
+            assert.equal(balanceOfToken1, 10)
+            // 3. check balance of token id 2
+            let balanceOfToken2 = await nftMinter.balanceOf(accounts[0], 2)
+            assert.equal(balanceOfToken2, 20)
+            // 4. burnBatch
+            await nftMinter.burnBatch(accounts[0], [1,2], [4,8], {from: accounts[0]})
+            // 5. check balance of token again
+            balanceOfToken1 = await nftMinter.balanceOf(accounts[0], 1)
+            assert.equal(balanceOfToken1, 6)
+            balanceOfToken2 = await nftMinter.balanceOf(accounts[0], 2)
+            assert.equal(balanceOfToken2, 12)
+        })
+
+        it('26th test, unapproved accounts cannot burn the holder\'s tokens', async () => {
+            // accounts[0] is holder
+            await expectRevert(nftMinter.burnBatch(accounts[0], [1,2], [4,8], {from: accounts[2]}), 'ERC1155: caller is not owner nor approved')
+        })
+
+        it('27th test, approved operators can burn the holder\'s tokens', async () => {
+            // accounts[0] is holder, accounts[2] is operator
+            await nftMinter.setApprovalForAll(accounts[2], true, { from: accounts[0] })
+            await nftMinter.burnBatch(accounts[0], [1,2], [5,10], {from: accounts[2]})
+
+            // check balance of token id 1
+            const balanceOfToken1 = await nftMinter.balanceOf(accounts[0], 1)
+            assert.equal(balanceOfToken1, 5)
+            const balanceOfToken2 = await nftMinter.balanceOf(accounts[0], 2)
+            assert.equal(balanceOfToken2, 10)
+        })
+    })
+
 })

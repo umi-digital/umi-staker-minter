@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.3;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -24,7 +24,7 @@ import "./ERC20Interface.sol";
         name: "nft name"
     }
  */
-contract NftMinter is ERC1155, ReentrancyGuard, Pausable, Ownable {
+contract NftMinter is ERC1155Burnable, ReentrancyGuard, Pausable, Ownable {
     using Address for address;
     using SafeMath for uint256;
     using Counters for Counters.Counter;
