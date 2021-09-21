@@ -903,6 +903,18 @@ contract NftStakingFarm is
         nftApys[48] = 80;
         nftApys[49] = 80;
         nftApys[50] = 80;
+        // category 7(total9 )
+        nftApys[52] = 40;
+        nftApys[60] = 40;
+        nftApys[61] = 40;
+        nftApys[62] = 40;
+        nftApys[63] = 40;
+        nftApys[64] = 40;
+        nftApys[65] = 40;
+        nftApys[66] = 40;
+        nftApys[67] = 40;
+        // category 8(total 1)
+        nftApys[59] = 1;
     }
     
 }

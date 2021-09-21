@@ -10,11 +10,13 @@
     "test:local": "truffle test --network local",
     "test:umiTokenFarm": "truffle test --network local test/1_UmiTokenFarm.test.js",
     "test:nftStakingFarm": "truffle test --network local test/2_NftStakingFarm.test.js",
+    "test:testRewards": "truffle test --network local test/3_TestRewards.test.js",
     "test:lpTokenFarm": "truffle test --network local test/4_LpTokenFarm.test.js",
     "test:lpNftStakingFarm": "truffle test --network local test/5_LpNftStakingFarm.test.js",
     "test:NftMinter":"truffle test --network local test/6_NftMinter.test.js",
     "contract-size": "truffle run contract-size",
-    "deploy:local": "truffle migrate --reset --network local"
+    "deploy:local": "truffle migrate --reset --network local",
+    "deploy:rinkeby": "truffle migrate --reset --network rinkeby"
   },
   "keywords": [],
   "author": "",

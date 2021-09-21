@@ -1,6 +1,6 @@
 require("dotenv").config()
 const envUtils = require("../src/utils/evnUtils");
-const UmiERC20 = artifacts.require("UmiTokenFarm");
+const UmiERC20 = artifacts.require("UmiTokenMock");
 const NftMinter = artifacts.require("NftMinter");
 
 module.exports = async function(deployer, network, accounts) {
