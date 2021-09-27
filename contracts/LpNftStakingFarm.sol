@@ -74,21 +74,24 @@ contract LpNftStakingFarm is
 
     /**
      * Emitted when a new nft apy value is set.
+     * @param nftAddress The address of nft contract.
      * @param nftId The nft id.
      * @param value A new APY value.
      * @param sender The owner address at the moment of apy changing.
      */
-    event NftApySet(uint256 nftId, uint256 value, address sender);
+    event NftApySet(address indexed nftAddress, uint256 nftId, uint256 value, address sender);
 
     /**
      * Emitted when a user stakes nft token.
      * @param sender User address.
+     * @param nftAddress The address of nft contract.
      * @param nftId The nft id.
      * @param amount The amount of nft id.
      * @param timestamp The time when stake nft.
      */
     event NftStaked(
         address indexed sender,
+        address indexed nftAddress,
         uint256 nftId,
         uint256 amount,
         uint256 timestamp
@@ -97,12 +100,14 @@ contract LpNftStakingFarm is
     /**
      * Emitted when a user batch stakes nft token.
      * @param sender User address.
+     * @param nftAddress The address of nft contract.
      * @param nftIds The nft id.
      * @param amounts The amount of nft id.
      * @param timestamp The time when batch stake nft.
      */
     event NftsBatchStaked(
         address indexed sender,
+        address indexed nftAddress,
         uint256[] nftIds,
         uint256[] amounts,
         uint256 timestamp
@@ -111,12 +116,14 @@ contract LpNftStakingFarm is
     /**
      * Emitted when a user unstake nft token.
      * @param sender User address.
+     * @param nftAddress The address of nft contract.
      * @param nftId The nft id.
      * @param amount The amount of nft id.
      * @param timestamp The time when unstake nft.
      */
     event NftUnstaked(
         address indexed sender,
+        address indexed nftAddress,
         uint256 nftId,
         uint256 amount,
         uint256 timestamp
@@ -125,12 +132,14 @@ contract LpNftStakingFarm is
     /**
      * Emitted when a user batch unstake nft token.
      * @param sender User address.
+     * @param nftAddress The address of nft contract.
      * @param nftIds The nft id array.
      * @param amounts The amount array of nft id.
      * @param timestamp The time when batch unstake nft.
      */
     event NftsBatchUnstaked(
         address indexed sender,
+        address indexed nftAddress,
         uint256[] nftIds,
         uint256[] amounts,
         uint256 timestamp
@@ -154,8 +163,6 @@ contract LpNftStakingFarm is
     ERC20Interface public lpToken;
     // rewards token(umi token now)
     ERC20Interface public umiToken;
-    // nft token contract
-    IERC1155 public nftContract;
 
     // lp token about
     // The stake balances of users, it will contains interest(user address->amount), input token is umi
@@ -172,12 +179,12 @@ contract LpNftStakingFarm is
     uint256 public totalFunding;
 
     // ERC1155 about
-    // Store each nft apy(ntfId->apy)
-    mapping(uint256 => uint8) public nftApys;
-    // Nft balance of users(user address->(nftId->amount))
-    mapping(address => mapping(uint256 => uint256)) public nftBalances;
-    // Store user's nft ids(user address -> NftSet)
-    mapping(address => NftSet) userNftIds;
+    // Store each nft apy(nft address->(ntfId->apy))
+    mapping(address => mapping(uint256 => uint8)) public nftApys;
+    // Nft balance of users(user address->(nft contract address -> (nftId->amount)))
+    mapping(address => mapping(address => mapping(uint256 => uint256))) public nftBalances;
+    // Store user's nft ids(user address -> (nft contract address -> NftSet))
+    mapping(address => mapping(address => NftSet)) userNftIds;
     // The total nft staked amount
     uint256 public totalNftStaked;
     // To store user's nft ids, it is more convenient to know if nft id of user exists
@@ -187,19 +194,30 @@ contract LpNftStakingFarm is
         // nft id -> bool, if nft id exist
         mapping(uint256 => bool) isIn;
     }
+    // the nft contracts address which supported
+    address[] public nftAddresses;
+    // if nft address supported
+    mapping(address => bool) public isNftSupported;
+    address private firstNft = 0xd194f079Cc291Fe9DB7Dad95444eEc1246413636;
+    address private secondNft = 0x90ad78735BC59a5dCb6a038728684c484CD5860D;
 
     // other constants
     // base APY when staking just lp token is 33%, only contract owner can modify it
     uint256 public BASE_APY = 33; // stand for 33%
 
-    constructor(address _umiAddress, address _lpAddress, address _nftContract) {
+    constructor(address _umiAddress, address _lpAddress) {
         require(
-            _umiAddress.isContract() && _lpAddress.isContract() && _nftContract.isContract(),
+            _umiAddress.isContract() && _lpAddress.isContract(),
             "must use contract address"
         );
         umiToken = ERC20Interface(_umiAddress);
         lpToken = ERC20Interface(_lpAddress);
-        nftContract = IERC1155(_nftContract);
+        
+        nftAddresses.push(firstNft);
+        nftAddresses.push(secondNft);
+        isNftSupported[firstNft] = true;
+        isNftSupported[secondNft] = true;
+        
         // initialize apys
         initApys();
     }
@@ -355,14 +373,17 @@ contract LpNftStakingFarm is
     /**
      * stake nft token to this contract.
      * Note: It calls another internal "_stakeNft" method. See its description.
+     * 
+     * @param nftAddress The address of nft contract.
      */
     function stakeNft(
+        address nftAddress,
         uint256 id,
         uint256 value,
         bytes calldata data
     ) external whenNotPaused nonReentrant {
-        require(isInWhitelist(id), "stakeNft: nft id not in whitelist");
-        _stakeNft(msg.sender, address(this), id, value, data);
+        require(isInWhitelist(nftAddress, id), "stakeNft: nft id not in whitelist");
+        _stakeNft(msg.sender, address(this), nftAddress, id, value, data);
     }
 
     /**
@@ -373,12 +394,14 @@ contract LpNftStakingFarm is
      *
      * @param _from The address of the sender.
      * @param _to The address of the receiver.
+     * @param _nftAddress The address of nft contract.
      * @param _id The nft id.
      * @param _value The amount of nft token.
      */
     function _stakeNft(
         address _from,
         address _to,
+        address _nftAddress,
         uint256 _id,
         uint256 _value,
         bytes calldata _data
@@ -389,17 +412,17 @@ contract LpNftStakingFarm is
         stakeDates[_from] = balances[_from] > 0 ?  _now() : 0;
 
         // modify nftBalances of user
-        nftBalances[_from][_id] = nftBalances[_from][_id].add(_value);
+        nftBalances[_from][_nftAddress][_id] = nftBalances[_from][_nftAddress][_id].add(_value);
         // modify user's nft id array
-        setUserNftIds(_from, _id);
+        setUserNftIds(_from, _nftAddress, _id);
         totalNftStaked = totalNftStaked.add(_value);
 
         // transfer nft token to this contract
-        nftContract.safeTransferFrom(_from, _to, _id, _value, _data);
+        getERC1155(_nftAddress).safeTransferFrom(_from, _to, _id, _value, _data);
         // Transfer umiToken interest to user
         transferUmiInterest(_from, umiInterest);
         // send event
-        emit NftStaked(_from, _id, _value, _now());
+        emit NftStaked(_from, _nftAddress, _id, _value, _now());
     }
 
     /**
@@ -407,10 +430,13 @@ contract LpNftStakingFarm is
      *
      * Note: It calls another internal "_batchStakeNfts" method. See its description.
      *       Reverts if ids and values length mismatch.
+     * 
+     * @param nftAddress The address of nft contract.
      * @param ids The nft id array to be staked.
      * @param values The nft amount array.
      */
     function batchStakeNfts(
+        address nftAddress,
         uint256[] calldata ids,
         uint256[] calldata values,
         bytes calldata data
@@ -419,7 +445,7 @@ contract LpNftStakingFarm is
             ids.length == values.length,
             "ids and values length mismatch"
         );
-        _batchStakeNfts(msg.sender, address(this), ids, values, data);
+        _batchStakeNfts(msg.sender, address(this), nftAddress, ids, values, data);
     }
 
     /**
@@ -430,12 +456,14 @@ contract LpNftStakingFarm is
      *
      * @param _from The address of sender.
      * @param _to The address of receiver.
+     * @param _nftAddress The address of nft contract.
      * @param _ids The nft id array to be staked.
      * @param _values The nft amount array.
      */
     function _batchStakeNfts(
         address _from,
         address _to,
+        address _nftAddress,
         uint256[] memory _ids,
         uint256[] memory _values,
         bytes calldata _data
@@ -452,22 +480,22 @@ contract LpNftStakingFarm is
             // get amount
             uint256 value = _values[i];
 
-            require(isInWhitelist(id), "nft id not in whitelist");
+            require(isInWhitelist(_nftAddress, id), "nft id not in whitelist");
 
             // increase nft balance of user
-            nftBalances[_from][id] = nftBalances[_from][id].add(value);
+            nftBalances[_from][_nftAddress][id] = nftBalances[_from][_nftAddress][id].add(value);
             // update user's nft id array
-            setUserNftIds(_from, id);
+            setUserNftIds(_from, _nftAddress, id);
             // increase total nft amount
             totalNftStaked = totalNftStaked.add(value);
         }
 
         // batch transfer nft tokens
-        nftContract.safeBatchTransferFrom(_from, _to, _ids, _values, _data);
+        getERC1155(_nftAddress).safeBatchTransferFrom(_from, _to, _ids, _values, _data);
         // Transfer umiToken interest to user
         transferUmiInterest(msg.sender, umiInterest);
         // send event
-        emit NftsBatchStaked(_from, _ids, _values, _now());
+        emit NftsBatchStaked(_from, _nftAddress, _ids, _values, _now());
     }
 
     /**
@@ -475,15 +503,17 @@ contract LpNftStakingFarm is
      *
      * Note: It calls another internal "_unstakeNft" method. See its description.
      *
+     * @param nftAddress The address of nft contract.
      * @param id The nft id.
      * @param value The amount of nft id.
      */
     function unstakeNft(
+        address nftAddress,
         uint256 id,
         uint256 value,
         bytes calldata data
     ) external whenNotPaused nonReentrant {
-        _unstakeNft(id, value, data);
+        _unstakeNft(nftAddress, id, value, data);
     }
 
     /**
@@ -492,10 +522,12 @@ contract LpNftStakingFarm is
      * Note: when nft unstaked, apy will changed, should recalculate balance.
      * update nft balance, nft id and totalNftStaked.
      *
+     * @param _nftAddress The address of nft contract.
      * @param _id The nft id.
      * @param _value The amount of nft id.
      */
     function _unstakeNft(
+        address _nftAddress,
         uint256 _id,
         uint256 _value,
         bytes calldata _data
@@ -505,23 +537,23 @@ contract LpNftStakingFarm is
         // update stakeDate of user
         stakeDates[msg.sender] = balances[msg.sender] > 0 ?  _now() : 0;
 
-        uint256 nftBalance = nftBalances[msg.sender][_id];
+        uint256 nftBalance = nftBalances[msg.sender][_nftAddress][_id];
         require(
             nftBalance >= _value,
             "insufficient balance for unstake"
         );
 
         // reduce nft balance
-        nftBalances[msg.sender][_id] = nftBalance.sub(_value);
+        nftBalances[msg.sender][_nftAddress][_id] = nftBalance.sub(_value);
         // reduce total nft amount
         totalNftStaked = totalNftStaked.sub(_value);
-        if (nftBalances[msg.sender][_id] == 0) {
+        if (nftBalances[msg.sender][_nftAddress][_id] == 0) {
             // if balance of the nft id is 0, remove nft id and set flag=false
-            removeUserNftId(_id);
+            removeUserNftId(_nftAddress, _id);
         }
 
         // transfer nft token from this contract
-        nftContract.safeTransferFrom(
+        getERC1155(_nftAddress).safeTransferFrom(
             address(this),
             msg.sender,
             _id,
@@ -531,7 +563,7 @@ contract LpNftStakingFarm is
         // Transfer umiToken interest to user
         transferUmiInterest(msg.sender, umiInterest);
         // send event
-        emit NftUnstaked(msg.sender, _id, _value, _now());
+        emit NftUnstaked(msg.sender, _nftAddress, _id, _value, _now());
     }
 
     /**
@@ -540,10 +572,12 @@ contract LpNftStakingFarm is
      * Note: It calls another internal "_batchUnstakeNfts" method. See its description.
      *       Reverts if ids and values length mismatch.
      *
+     * @param nftAddress The address of nft contract.
      * @param ids The nft id array to be staked.
      * @param values The nft amount array.
      */
     function batchUnstakeNfts(
+        address nftAddress,
         uint256[] calldata ids,
         uint256[] calldata values,
         bytes calldata data
@@ -552,7 +586,7 @@ contract LpNftStakingFarm is
             ids.length == values.length,
             "ids and values length mismatch"
         );
-        _batchUnstakeNfts(address(this), msg.sender, ids, values, data);
+        _batchUnstakeNfts(address(this), msg.sender, nftAddress, ids, values, data);
     }
 
     /**
@@ -563,12 +597,14 @@ contract LpNftStakingFarm is
      *
      * @param _from The address of sender.
      * @param _to The address of receiver.
+     * @param _nftAddress The address of nft contract.
      * @param _ids The nft id array to be unstaked.
      * @param _values The nft amount array.
      */
     function _batchUnstakeNfts(
         address _from,
         address _to,
+        address _nftAddress,
         uint256[] calldata _ids,
         uint256[] calldata _values,
         bytes calldata _data
@@ -585,25 +621,25 @@ contract LpNftStakingFarm is
             // get amount of nft id
             uint256 value = _values[i];
 
-            uint256 nftBalance = nftBalances[msg.sender][id];
+            uint256 nftBalance = nftBalances[msg.sender][_nftAddress][id];
             require(
                 nftBalance >= value,
                 "insufficient nft balance for unstake"
             );
-            nftBalances[msg.sender][id] = nftBalance.sub(value);
+            nftBalances[msg.sender][_nftAddress][id] = nftBalance.sub(value);
             totalNftStaked = totalNftStaked.sub(value);
-            if (nftBalances[msg.sender][id] == 0) {
+            if (nftBalances[msg.sender][_nftAddress][id] == 0) {
                 // if balance of the nft id is 0, remove nft id and set flag=false
-                removeUserNftId(id);
+                removeUserNftId(_nftAddress, id);
             }
         }
 
         // transfer nft token from this contract
-        nftContract.safeBatchTransferFrom(_from, _to, _ids, _values, _data);
+        getERC1155(_nftAddress).safeBatchTransferFrom(_from, _to, _ids, _values, _data);
         // Transfer umiToken interest to user
         transferUmiInterest(msg.sender, umiInterest);
         // send event
-        emit NftsBatchUnstaked(msg.sender, _ids, _values, _now());
+        emit NftsBatchUnstaked(msg.sender, _nftAddress, _ids, _values, _now());
     }
 
     /**
@@ -643,7 +679,7 @@ contract LpNftStakingFarm is
      * @param _from User address.
      */
     function calculateUmiTokenRewards(address _from) public view returns(uint256) {
-        // if lpToken balance>0, pass time > 1day, should calculate rewards of umiToken.
+        // if lpToken balance>0, pass time > 1 seconds, should calculate rewards of umiToken.
         // get current lp token balance
         uint256 balance = balances[_from];
         if (balance <= 0) {
@@ -697,6 +733,14 @@ contract LpNftStakingFarm is
     function getUmiBalance(address addr) public view returns (uint256) {
         return umiToken.balanceOf(addr);
     }
+    
+    /**
+     * Get erc1155 token instance by address.
+     */
+    function getERC1155(address _nftAddress) internal pure returns(IERC1155) {
+       IERC1155 nftContract = IERC1155(_nftAddress);
+       return nftContract;
+    }
 
     /**
      * Get lp token balance by address.
@@ -711,47 +755,51 @@ contract LpNftStakingFarm is
      * Get nft balance by user address and nft id.
      *
      * @param user The address of user.
+     * @param nftAddress The address of nft contract.
      * @param id The nft id.
      */
-    function getNftBalance(address user, uint256 id)
+    function getNftBalance(address user, address nftAddress, uint256 id)
         public
         view
         returns (uint256)
     {
-        return nftContract.balanceOf(user, id);
+        return getERC1155(nftAddress).balanceOf(user, id);
     }
 
     /**
      * Get user's nft ids array.
      * @param user The address of user.
+     * @param nftAddress The address of nft contract.
      */
-    function getUserNftIds(address user)
+    function getUserNftIds(address user, address nftAddress)
         public
         view
         returns (uint256[] memory)
     {
-        return userNftIds[user].ids;
+        return userNftIds[user][nftAddress].ids;
     }
 
     /**
      * Get length of user's nft id array.
      * @param user The address of user.
+     * @param nftAddress The address of nft contract.
      */
-    function getUserNftIdsLength(address user) public view returns (uint256) {
-        return userNftIds[user].ids.length;
+    function getUserNftIdsLength(address user, address nftAddress) public view returns (uint256) {
+        return userNftIds[user][nftAddress].ids.length;
     }
 
     /**
-     * Check if nft id exist.
+     * Check whether user have certain nft or not.
      * @param user The address of user.
+     * @param nftAddress The address of nft contract.
      * @param nftId The nft id of user.
      */
-    function isNftIdExist(address user, uint256 nftId)
+    function isNftIdExist(address user, address nftAddress, uint256 nftId)
         public
         view
         returns (bool)
     {
-        NftSet storage nftSet = userNftIds[user];
+        NftSet storage nftSet = userNftIds[user][nftAddress];
         mapping(uint256 => bool) storage isIn = nftSet.isIn;
         return isIn[nftId];
     }
@@ -763,10 +811,11 @@ contract LpNftStakingFarm is
      * otherwise do nothing.
      *
      * @param user The address of user.
+     * @param nftAddress The address of nft contract.
      * @param nftId The nft id of user.
      */
-    function setUserNftIds(address user, uint256 nftId) internal {
-        NftSet storage nftSet = userNftIds[user];
+    function setUserNftIds(address user, address nftAddress, uint256 nftId) internal {
+        NftSet storage nftSet = userNftIds[user][nftAddress];
         uint256[] storage ids = nftSet.ids;
         mapping(uint256 => bool) storage isIn = nftSet.isIn;
         if (!isIn[nftId]) {
@@ -779,9 +828,12 @@ contract LpNftStakingFarm is
      * Remove nft id of user.
      *
      * Note: when user's nft id amount=0, remove it from nft ids array, and set flag=false
+     * 
+     * @param nftAddress The address of nft contract.
+     * @param nftId The nft id of user.
      */
-    function removeUserNftId(uint256 nftId) internal {
-        NftSet storage nftSet = userNftIds[msg.sender];
+    function removeUserNftId(address nftAddress, uint256 nftId) internal {
+        NftSet storage nftSet = userNftIds[msg.sender][nftAddress];
         uint256[] storage ids = nftSet.ids;
         mapping(uint256 => bool) storage isIn = nftSet.isIn;
         require(ids.length > 0, "remove user nft ids, ids length must > 0");
@@ -801,18 +853,24 @@ contract LpNftStakingFarm is
      *
      * Note: apy will be an integer value, 40 stands for 40%
      */
-    function setApyByTokenId(uint256 id, uint8 apy) public onlyOwner {
+    function setApyByTokenId(address nftAddress, uint256 id, uint8 apy) public onlyOwner {
+        require(nftAddress != address(0), "nft address incorrect");
         require(id > 0 && apy > 0, "nft and apy must > 0");
-        nftApys[id] = apy;
-        emit NftApySet(id, apy, msg.sender);
+        if (!isNftSupported[nftAddress]) {
+           // if nft address never been added
+           nftAddresses.push(nftAddress);
+           isNftSupported[nftAddress] = true;
+        }
+        nftApys[nftAddress][id] = apy;
+        emit NftApySet(nftAddress, id, apy, msg.sender);
     }
 
     /**
      * Check if nft id is in whitelist.
      * @param id The nft id.
      */
-    function isInWhitelist(uint256 id) public view returns(bool) {
-        return nftApys[id] > 0;
+    function isInWhitelist(address nftAddress, uint256 id) public view returns(bool) {
+        return nftApys[nftAddress][id] > 0;
     }
 
     /**
@@ -828,22 +886,25 @@ contract LpNftStakingFarm is
         if (balanceOfUmi <= 0) {
             return 0;
         }
-        uint256[] memory nftIds = getUserNftIds(user);
-        // non nft staked, apy will be 12%
-        if (nftIds.length <= 0) {
-            return BASE_APY;
-        }
         // totalApy
         uint256 totalApy = BASE_APY;
-        // iter nftIds and calculate total apy
-        for (uint256 i = 0; i < nftIds.length; i++) {
-            uint256 nftId = nftIds[i];
-            // get user balance of nft
-            uint256 balance = nftBalances[user][nftId];
-            // get apy of certain nft id
-            uint256 apy = nftApys[nftId];
-            totalApy = totalApy.add(balance.mul(apy));
+        
+        for (uint256 i = 0; i< nftAddresses.length; i++) {
+            uint256[] memory nftIds = getUserNftIds(user, nftAddresses[i]);
+            if (nftIds.length <= 0) {
+                continue;
+            }
+            // iter nftIds and calculate total apy
+            for (uint256 j = 0; j < nftIds.length; j++) {
+                uint256 nftId = nftIds[j];
+                // get user balance of nft
+                uint256 balance = nftBalances[user][nftAddresses[i]][nftId];
+                // get apy of certain nft id
+                uint256 apy = nftApys[nftAddresses[i]][nftId];
+                totalApy = totalApy.add(balance.mul(apy));
+            }
         }
+        
         return totalApy;
     }
 
@@ -882,72 +943,98 @@ contract LpNftStakingFarm is
      * Init apys when deploy contract.
      */
     function initApys() internal onlyOwner {
+        // first nft contract
         // category 1(total 3)
-        nftApys[18] = 2;
-        nftApys[19] = 2;
-        nftApys[20] = 2;
+        nftApys[firstNft][18] = 2;
+        nftApys[firstNft][19] = 2;
+        nftApys[firstNft][20] = 2;
         // category 2(total 27)
-        nftApys[1] = 10;
-        nftApys[2] = 10;
-        nftApys[4] = 10;
-        nftApys[5] = 10;
-        nftApys[6] = 10;
-        nftApys[7] = 10;
-        nftApys[8] = 10;
-        nftApys[9] = 10;
-        nftApys[12] = 10;
-        nftApys[13] = 10;
-        nftApys[14] = 10;
-        nftApys[15] = 10;
-        nftApys[16] = 10;
-        nftApys[22] = 10;
-        nftApys[23] = 10;
-        nftApys[24] = 10;
-        nftApys[26] = 10;
-        nftApys[27] = 10;
-        nftApys[28] = 10;
-        nftApys[29] = 10;
-        nftApys[30] = 10;
-        nftApys[31] = 10;
-        nftApys[32] = 10;
-        nftApys[33] = 10;
-        nftApys[35] = 10;
-        nftApys[36] = 10;
-        nftApys[37] = 10;
+        nftApys[firstNft][1] = 10;
+        nftApys[firstNft][2] = 10;
+        nftApys[firstNft][4] = 10;
+        nftApys[firstNft][5] = 10;
+        nftApys[firstNft][6] = 10;
+        nftApys[firstNft][7] = 10;
+        nftApys[firstNft][8] = 10;
+        nftApys[firstNft][9] = 10;
+        nftApys[firstNft][12] = 10;
+        nftApys[firstNft][13] = 10;
+        nftApys[firstNft][14] = 10;
+        nftApys[firstNft][15] = 10;
+        nftApys[firstNft][16] = 10;
+        nftApys[firstNft][22] = 10;
+        nftApys[firstNft][23] = 10;
+        nftApys[firstNft][24] = 10;
+        nftApys[firstNft][26] = 10;
+        nftApys[firstNft][27] = 10;
+        nftApys[firstNft][28] = 10;
+        nftApys[firstNft][29] = 10;
+        nftApys[firstNft][30] = 10;
+        nftApys[firstNft][31] = 10;
+        nftApys[firstNft][32] = 10;
+        nftApys[firstNft][33] = 10;
+        nftApys[firstNft][35] = 10;
+        nftApys[firstNft][36] = 10;
+        nftApys[firstNft][37] = 10;
         // category 3(total 4)
-        nftApys[3] = 20;
-        nftApys[11] = 20;
-        nftApys[25] = 20;
-        nftApys[34] = 20;
+        nftApys[firstNft][3] = 20;
+        nftApys[firstNft][11] = 20;
+        nftApys[firstNft][25] = 20;
+        nftApys[firstNft][34] = 20;
         // category 4(total 1)
-        nftApys[17] = 30;
+        nftApys[firstNft][17] = 30;
         // category 5(total 7)
-        nftApys[38] = 40;
-        nftApys[39] = 40;
-        nftApys[40] = 40;
-        nftApys[41] = 40;
-        nftApys[42] = 40;
-        nftApys[43] = 40;
-        nftApys[44] = 40;
+        nftApys[firstNft][38] = 40;
+        nftApys[firstNft][39] = 40;
+        nftApys[firstNft][40] = 40;
+        nftApys[firstNft][41] = 40;
+        nftApys[firstNft][42] = 40;
+        nftApys[firstNft][43] = 40;
+        nftApys[firstNft][44] = 40;
         // category 6(total 6)
-        nftApys[45] = 80;
-        nftApys[46] = 80;
-        nftApys[47] = 80;
-        nftApys[48] = 80;
-        nftApys[49] = 80;
-        nftApys[50] = 80;
+        nftApys[firstNft][45] = 80;
+        nftApys[firstNft][46] = 80;
+        nftApys[firstNft][47] = 80;
+        nftApys[firstNft][48] = 80;
+        nftApys[firstNft][49] = 80;
+        nftApys[firstNft][50] = 80;
         // category 7(total9 )
-        nftApys[52] = 40;
-        nftApys[60] = 40;
-        nftApys[61] = 40;
-        nftApys[62] = 40;
-        nftApys[63] = 40;
-        nftApys[64] = 40;
-        nftApys[65] = 40;
-        nftApys[66] = 40;
-        nftApys[67] = 40;
+        nftApys[firstNft][52] = 40;
+        nftApys[firstNft][60] = 40;
+        nftApys[firstNft][61] = 40;
+        nftApys[firstNft][62] = 40;
+        nftApys[firstNft][63] = 40;
+        nftApys[firstNft][64] = 40;
+        nftApys[firstNft][65] = 40;
+        nftApys[firstNft][66] = 40;
+        nftApys[firstNft][67] = 40;
         // category 8(total 1)
-        nftApys[59] = 1;
+        nftApys[firstNft][59] = 1;
+        
+        // second nft contract
+        // category 3(total 1)
+        nftApys[secondNft][1] = 20;
+        // category 9(total 20)
+        nftApys[secondNft][2] = 102;
+        nftApys[secondNft][3] = 102;
+        nftApys[secondNft][4] = 102;
+        nftApys[secondNft][5] = 102;
+        nftApys[secondNft][6] = 102;
+        nftApys[secondNft][7] = 102;
+        nftApys[secondNft][8] = 102;
+        nftApys[secondNft][9] = 102;
+        nftApys[secondNft][10] = 102;
+        nftApys[secondNft][11] = 102;
+        nftApys[secondNft][12] = 102;
+        nftApys[secondNft][13] = 102;
+        nftApys[secondNft][14] = 102;
+        nftApys[secondNft][15] = 102;
+        nftApys[secondNft][16] = 102;
+        nftApys[secondNft][17] = 102;
+        nftApys[secondNft][18] = 102;
+        nftApys[secondNft][19] = 102;
+        nftApys[secondNft][20] = 102;
+        nftApys[secondNft][21] = 102;
     }
     
 }

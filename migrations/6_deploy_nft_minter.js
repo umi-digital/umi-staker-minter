@@ -15,5 +15,5 @@ module.exports = async function(deployer, network, accounts) {
     }
 
     // deploy NftMinter
-    await deployer.deploy(NftMinter, 'NftMinter', 'Nft', 'https://www.umi.com/', umiTokenAddress)
+    await deployer.deploy(NftMinter, 'NftMinter', 'Nft', umiTokenAddress)
 };

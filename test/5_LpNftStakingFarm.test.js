@@ -4,7 +4,6 @@ const LpTokenMock = artifacts.require("LpTokenMock");
 const UmiERC1155 = artifacts.require("ERC1155Mock");
 const LpNftStakingFarm = artifacts.require("LpNftStakingFarm");
 const { assert } = require("chai");
-const { parse } = require('dotenv');
 
 require('chai')
     .use(require('chai-as-promised'))
@@ -36,17 +35,20 @@ contract('LpNftStakingFarm', async (accounts) => {
     let lpTokenMock
     let umiERC1155
     let lpNftStakingFarm
+    let otherUmiERC1155
 
     // precondition
     before(async () => {
         // 1. deploy contracts
         umiTokenMock = await UmiTokenMock.new()
         lpTokenMock = await LpTokenMock.new()
-        umiERC1155 = await UmiERC1155.new('uri')
-        lpNftStakingFarm = await LpNftStakingFarm.new(umiTokenMock.address, lpTokenMock.address, umiERC1155.address)
+        umiERC1155 = await UmiERC1155.new('first_nft_uri')
+        otherUmiERC1155 = await UmiERC1155.new('other_nft_uri')
+        lpNftStakingFarm = await LpNftStakingFarm.new(umiTokenMock.address, lpTokenMock.address)
         console.log('UmiTokenMock is deployed to %s', umiTokenMock.address)
         console.log('LpTokenMock is deployed to %s', lpTokenMock.address)
         console.log('UmiERC1155 is deployed to %s', umiERC1155.address)
+        console.log('otherUmiERC1155 is deployed to %s', otherUmiERC1155.address)
         console.log('LpNftStakingFarm is deployed to %s', lpNftStakingFarm.address)
 
         // 2. transfer umiToken to accounts
@@ -78,10 +80,26 @@ contract('LpNftStakingFarm', async (accounts) => {
         await umiERC1155.mint(accounts[3], 2, 10, "0x2222", { from: accounts[0] });
         await umiERC1155.mint(accounts[3], 3, 10, "0x3333", { from: accounts[0] });
 
-        // 5. mock, set apy of token
-        await lpNftStakingFarm.setApyByTokenId(1, 10)
-        await lpNftStakingFarm.setApyByTokenId(2, 20)
-        await lpNftStakingFarm.setApyByTokenId(3, 30)
+        await otherUmiERC1155.mint(accounts[0], 1, 10, "0x1111", { from: accounts[0] });
+        await otherUmiERC1155.mint(accounts[0], 2, 10, "0x2222", { from: accounts[0] });
+        await otherUmiERC1155.mint(accounts[0], 3, 10, "0x3333", { from: accounts[0] });
+
+        await otherUmiERC1155.mint(accounts[2], 1, 10, "0x1111", { from: accounts[0] });
+        await otherUmiERC1155.mint(accounts[2], 2, 10, "0x2222", { from: accounts[0] });
+        await otherUmiERC1155.mint(accounts[2], 3, 10, "0x3333", { from: accounts[0] });
+
+        await otherUmiERC1155.mint(accounts[3], 1, 10, "0x1111", { from: accounts[0] });
+        await otherUmiERC1155.mint(accounts[3], 2, 10, "0x2222", { from: accounts[0] });
+        await otherUmiERC1155.mint(accounts[3], 3, 10, "0x3333", { from: accounts[0] });
+
+        // 5. mock, set apy of token, first erc1155
+        await lpNftStakingFarm.setApyByTokenId(umiERC1155.address, 1, 10)
+        await lpNftStakingFarm.setApyByTokenId(umiERC1155.address,2, 20)
+        await lpNftStakingFarm.setApyByTokenId(umiERC1155.address,3, 30)
+
+        await lpNftStakingFarm.setApyByTokenId(otherUmiERC1155.address, 1, 40)
+        await lpNftStakingFarm.setApyByTokenId(otherUmiERC1155.address,2, 50)
+        await lpNftStakingFarm.setApyByTokenId(otherUmiERC1155.address,3, 60)
     })
 
     // test constructor
@@ -93,28 +111,22 @@ contract('LpNftStakingFarm', async (accounts) => {
             // 2. LpToken address is correct
             const lpTokenMockAddress = await lpNftStakingFarm.lpToken();
             assert.equal(lpTokenMockAddress, lpTokenMock.address);
-            // 3. erc1155 address is correct
-            const erc1155Address = await lpNftStakingFarm.nftContract()
-            assert.equal(erc1155Address, umiERC1155.address)
         })
 
         it('2nd test, fail if _umiAddress or _lpAddress or _nftContract is incorrect', async () => {
             // 1. _umiAddress incorrect
-            await expectRevert(LpNftStakingFarm.new(accounts[0], lpTokenMock.address, umiERC1155.address), 'must use contract address')
+            await expectRevert(LpNftStakingFarm.new(accounts[0], lpTokenMock.address), 'must use contract address')
             // 2. _lpAddress incorrect
-            await expectRevert(LpNftStakingFarm.new(umiTokenMock.address, accounts[0], umiERC1155.address), 'must use contract address')
-            lpNftStakingFarmFailed = false;
-            // 3. _nftContract incorrect
-            await expectRevert(LpNftStakingFarm.new(umiTokenMock.address, lpTokenMock.address, accounts[0]), 'must use contract address')
+            await expectRevert(LpNftStakingFarm.new(umiTokenMock.address, accounts[0]), 'must use contract address')
         })
 
         it('3rd test, initApys correct', async () => {
-            let nft1Apy = await lpNftStakingFarm.nftApys(1)
+            let nft1Apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 1)
             assert.equal(nft1Apy, 10)
-            let nft11Apy = await lpNftStakingFarm.nftApys(11)
-            assert.equal(nft11Apy, 20)
-            let nft50Apy = await lpNftStakingFarm.nftApys(50)
-            assert.equal(nft50Apy, 80)
+            let nft2Apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 2)
+            assert.equal(nft2Apy, 20)
+            let nft3Apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 3)
+            assert.equal(nft3Apy, 30)
         })
     })
 
@@ -177,7 +189,7 @@ contract('LpNftStakingFarm', async (accounts) => {
     })
 
     // test stake
-    describe('Test stake', async () => {
+     describe('Test stake', async () => {
         // before stake, owner should approve lpNftStakingFarm contract
         before(async () => {
             // account[0] approve 10000 lp tokens to lpNftStakingFarm
@@ -215,7 +227,7 @@ contract('LpNftStakingFarm', async (accounts) => {
         })
 
         // stake incorrect with amount 0
-        it('10th test, stake incorrect with amount=0', async () => {
+         it('10th test, stake incorrect with amount=0', async () => {
             // 1. stake 0 UmiToken to lpNftStakingFarm contract, it will fail
             await expectRevert(lpNftStakingFarm.stake(0, { from: accounts[0] }), 'stake amount should be more than 0')
         })
@@ -412,40 +424,40 @@ contract('LpNftStakingFarm', async (accounts) => {
     describe('Test stakeNft', async () => {
         // stake nft without approve, it will fail
         it('19th test, stake nft without approve, it will fail', async () => {
-            await expectRevert(lpNftStakingFarm.stakeNft(1, 1, '0x1111', { from: accounts[0] }), 'ERC1155: caller is not owner nor approved')
+            await expectRevert(lpNftStakingFarm.stakeNft(umiERC1155.address, 1, 1, '0x1111', { from: accounts[0] }), 'ERC1155: caller is not owner nor approved')
         })
 
         it('20th test, stake nft correct', async () => {
             // 1. before stake nft, setApprovalForAll
             await umiERC1155.setApprovalForAll(lpNftStakingFarm.address, true, { from: accounts[0] });
             // 2. check user's total nft balance
-            let nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], 1);
+            let nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], umiERC1155.address, 1);
             assert.equal(nftIdBalance, 10)
             // 3. stake nft
-            await lpNftStakingFarm.stakeNft(1, 1, '0x1111', { from: accounts[0] })
+            await lpNftStakingFarm.stakeNft(umiERC1155.address, 1, 1, '0x1111', { from: accounts[0] })
             // 4. stake success, check balance of nft token
-            let amount = await lpNftStakingFarm.nftBalances(accounts[0], 1)
+            let amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 1)
             // console.log('20th test, amount of nft id 1=%s', amount)
             assert.equal(amount, 1)
             // 5. check total nft staked
             let totalNftStaked = await lpNftStakingFarm.totalNftStaked()
             assert.equal(totalNftStaked, 1)
             // 6. check nft id array of user, will be 1
-            let idArray = await lpNftStakingFarm.getUserNftIds(accounts[0])
+            let idArray = await lpNftStakingFarm.getUserNftIds(accounts[0], umiERC1155.address)
             // console.log('20th test, idArray=%s', String(idArray))
             assert.equal(String(idArray), '1')
             // 7. stake 2, id array will be 1,2
-            await lpNftStakingFarm.stakeNft(2, 1, '0x1111', { from: accounts[0] })
-            idArray = await lpNftStakingFarm.getUserNftIds(accounts[0])
+            await lpNftStakingFarm.stakeNft(umiERC1155.address, 2, 1, '0x1111', { from: accounts[0] })
+            idArray = await lpNftStakingFarm.getUserNftIds(accounts[0], umiERC1155.address)
             // console.log('20th test, idArray=%s', String(idArray))
             assert.equal(String(idArray), '1,2')
             // 8. stake another 1, id array will also be 1,2
-            await lpNftStakingFarm.stakeNft(1, 1, '0x1111', { from: accounts[0] })
-            idArray = await lpNftStakingFarm.getUserNftIds(accounts[0])
+            await lpNftStakingFarm.stakeNft(umiERC1155.address, 1, 1, '0x1111', { from: accounts[0] })
+            idArray = await lpNftStakingFarm.getUserNftIds(accounts[0], umiERC1155.address)
             // console.log('20th test, idArray=%s', String(idArray))
             assert.equal(String(idArray), '1,2')
             // 9. check user's total nft balance again, will be 8
-            nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], 1);
+            nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], umiERC1155.address, 1);
             assert.equal(nftIdBalance, 8)
             // 10. with no umi token staked, totalApyOf will be 0
             let totalApyOfAccount0 = await lpNftStakingFarm.getTotalApyOfUser(accounts[0])
@@ -455,7 +467,7 @@ contract('LpNftStakingFarm', async (accounts) => {
         it('21th test, stake nft incorrect, nft id not in whitelist', async () => {
             // before stake nft, setApprovalForAll
             await umiERC1155.setApprovalForAll(lpNftStakingFarm.address, true, { from: accounts[0] });
-            await expectRevert(lpNftStakingFarm.stakeNft(1000, 1, '0x1111', { from: accounts[0] }), 'stakeNft: nft id not in whitelist')
+            await expectRevert(lpNftStakingFarm.stakeNft(umiERC1155.address, 1000, 1, '0x1111', { from: accounts[0] }), 'stakeNft: nft id not in whitelist')
         })
     })
 
@@ -466,7 +478,7 @@ contract('LpNftStakingFarm', async (accounts) => {
         it('22th test, batchStakeNfts incorrect, nft id not in whitelist', async () => {
             // before stake nft, setApprovalForAll
             await umiERC1155.setApprovalForAll(lpNftStakingFarm.address, true, { from: accounts[0] });
-            await expectRevert(lpNftStakingFarm.batchStakeNfts([1001], [1], '0x1111'), 'nft id not in whitelist')
+            await expectRevert(lpNftStakingFarm.batchStakeNfts(umiERC1155.address, [1001], [1], '0x1111'), 'nft id not in whitelist')
         })
 
         // accounts[0] stake staked 1 tokens whose nft id is 1, stake 2 token whose nft id is 2
@@ -474,12 +486,12 @@ contract('LpNftStakingFarm', async (accounts) => {
             // 1. before stake nft, setApprovalForAll
             await umiERC1155.setApprovalForAll(lpNftStakingFarm.address, true, { from: accounts[0] });
             // 2. stake staked 1 tokens whose nft id is 1, stake 2 token whose nft id is 2
-            await lpNftStakingFarm.batchStakeNfts([1, 2], [1, 2], '0x1111')
+            await lpNftStakingFarm.batchStakeNfts(umiERC1155.address, [1, 2], [1, 2], '0x1111')
             // 3. stake success, check balance of nft token
-            let amount = await lpNftStakingFarm.nftBalances(accounts[0], 1)
+            let amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 1)
             // console.log('23th test, amount of nft id 1 = %s', amount)
             assert.equal(amount, 3)
-            amount = await lpNftStakingFarm.nftBalances(accounts[0], 2)
+            amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 2)
             // console.log('23th test, amount of nft id 2 = %s', amount)
             assert.equal(amount, 3)
         })
@@ -494,15 +506,15 @@ contract('LpNftStakingFarm', async (accounts) => {
             // 1. before stake nft, setApprovalForAll
             await umiERC1155.setApprovalForAll(lpNftStakingFarm.address, true, { from: accounts[0] });
             // 2. unstake 1 token whose nft id is 1
-            await lpNftStakingFarm.unstakeNft(1, 1, '0x1111')
+            await lpNftStakingFarm.unstakeNft(umiERC1155.address, 1, 1, '0x1111')
             // 3. unstake success, check balance of nft token 1
-            let amount = await lpNftStakingFarm.nftBalances(accounts[0], 1)
+            let amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 1)
             // console.log('23th test, amount of nft id 1 = %s', amount)
             assert.equal(amount, 2)
             // 4. unstake 1 token whose nft id is 2
-            await lpNftStakingFarm.unstakeNft(2, 1, '0x1111')
+            await lpNftStakingFarm.unstakeNft(umiERC1155.address, 2, 1, '0x1111')
             // 5. unstake success, check balance of nft token 2
-            amount = await lpNftStakingFarm.nftBalances(accounts[0], 2)
+            amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 2)
             // console.log('23th test, amount of nft id 2 = %s', amount)
             assert.equal(amount, 2)
             // 6. check total nft staked
@@ -520,19 +532,19 @@ contract('LpNftStakingFarm', async (accounts) => {
             // 1. before stake nft, setApprovalForAll
             await umiERC1155.setApprovalForAll(lpNftStakingFarm.address, true, { from: accounts[0] });
             // 2. batch unstake ntfs
-            await lpNftStakingFarm.batchUnstakeNfts([1, 2], [1, 1], '0x1111', { from: accounts[0] })
+            await lpNftStakingFarm.batchUnstakeNfts(umiERC1155.address, [1, 2], [1, 1], '0x1111', { from: accounts[0] })
             // 3. unstake success, check balance of nft token 1
-            let amount = await lpNftStakingFarm.nftBalances(accounts[0], 1)
+            let amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 1)
             // console.log('24th test, amount of nft id 1 = %s', amount)
             assert.equal(amount, 1)
             // 4. check balance of nft token 2
-            amount = await lpNftStakingFarm.nftBalances(accounts[0], 2)
+            amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 2)
             // console.log('24th test, amount of nft id 2 = %s', amount)
             assert.equal(amount, 1)
             // 5. check user's total nft balance
-            let nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], 1);
+            let nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], umiERC1155.address, 1);
             assert.equal(nftIdBalance, 9)
-            nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], 2);
+            nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], umiERC1155.address,  2);
             assert.equal(nftIdBalance, 9)
         })
     })
@@ -568,13 +580,13 @@ contract('LpNftStakingFarm', async (accounts) => {
     describe('Test getNftBalance', async () => {
         it('28th test, get total nft balance of user correct', async () => {
             // nftId=1, value=9
-            let nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], 1);
+            let nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], umiERC1155.address, 1);
             assert.equal(nftIdBalance, 9)
             // nftId=2, value=9
-            nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], 2);
+            nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], umiERC1155.address, 2);
             assert.equal(nftIdBalance, 9)
             // nftId=3, value=10
-            nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], 3);
+            nftIdBalance = await lpNftStakingFarm.getNftBalance(accounts[0], umiERC1155.address, 3);
             assert.equal(nftIdBalance, 10)
         })
     })
@@ -583,7 +595,7 @@ contract('LpNftStakingFarm', async (accounts) => {
     describe('Test getUserNftIds', async () => {
         it('29th test, getUserNftIds correct', async () => {
             let idArray = [];
-            idArray = await lpNftStakingFarm.getUserNftIds(accounts[0])
+            idArray = await lpNftStakingFarm.getUserNftIds(accounts[0], umiERC1155.address)
             // console.log('29th test, idArray=%s', String(idArray))
             assert.equal(String(idArray), '1,2')
         })
@@ -593,11 +605,11 @@ contract('LpNftStakingFarm', async (accounts) => {
     describe('Test getUserNftIdsLength', async () => {
         it('30th test, getUserNftIdsLength correct', async () => {
             // 1. accounts[0] userNftIds.ids array length is 2
-            let length = await lpNftStakingFarm.getUserNftIdsLength(accounts[0])
+            let length = await lpNftStakingFarm.getUserNftIdsLength(accounts[0], umiERC1155.address)
             // console.log('30th test, accounts[0] userNftIds.ids array length is %s ', length)
             assert.equal(2, length)
             // 2. accounts[1] userNftIds.ids array length is 0
-            length = await lpNftStakingFarm.getUserNftIdsLength(accounts[1])
+            length = await lpNftStakingFarm.getUserNftIdsLength(accounts[1], umiERC1155.address)
             // console.log('30th test, accounts[1] userNftIds.ids array length is %s ', length)
             assert.equal(0, length)
         })
@@ -607,16 +619,16 @@ contract('LpNftStakingFarm', async (accounts) => {
     describe('Test isNftIdExist', async () => {
         it('31th test, check isNftIdExist correct', async () => {
             // 1. accounts[0] have token whose nft id is 1
-            let isNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[0], 1)
+            let isNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[0], umiERC1155.address, 1)
             assert.equal(true, isNftIdExist)
             // 2. accounts[0] have token whose nft id is 2
-            isNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[0], 2)
+            isNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[0], umiERC1155.address, 2)
             assert.equal(true, isNftIdExist)
             // 3. accounts[0] donot have token whose nft id is 3
-            isNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[0], 3)
+            isNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[0], umiERC1155.address, 3)
             assert.equal(false, isNftIdExist)
             // 4. accounts[1] donot have token whose nft id is 1
-            isNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[1], 1)
+            isNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[1], umiERC1155.address, 1)
             assert.equal(false, isNftIdExist)
         })
     })
@@ -625,41 +637,41 @@ contract('LpNftStakingFarm', async (accounts) => {
     describe('Test setApyByTokenId', async () => {
         it('32th test, check setApyByTokenId correct', async () => {
             // 1. get apy of nft id 1
-            let apy = await lpNftStakingFarm.nftApys(1)
+            let apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 1)
             // console.log('32th test, apy of nftId1=%s', apy)
             assert.equal(10, apy)
             // 2. get apy of nft id 2
-            apy = await lpNftStakingFarm.nftApys(2)
+            apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 2)
             // console.log('32th test, apy of nftId2=%s', apy)
             assert.equal(20, apy)
             // 3. get apy of nft id 3
-            apy = await lpNftStakingFarm.nftApys(3)
+            apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 3)
             // console.log('32th test, apy of nftId3=%s', apy)
             assert.equal(30, apy)
             // 4. modify apy of nft id 1
-            await lpNftStakingFarm.setApyByTokenId(1, 15)
+            await lpNftStakingFarm.setApyByTokenId(umiERC1155.address, 1, 15)
             // 5. get apy of nft id 1 again, check if set correct
-            apy = await lpNftStakingFarm.nftApys(1)
+            apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 1)
             // console.log('32th test, apy of nftId1=%s', apy)
             assert.equal(15, apy)
         })
 
         it('33th test, can not call setApyByTokenId by non owner', async () => {
-            await expectRevert(lpNftStakingFarm.setApyByTokenId(1, 10, { from: accounts[1] }), 'Ownable: caller is not the owner')
+            await expectRevert(lpNftStakingFarm.setApyByTokenId(umiERC1155.address, 1, 10, { from: accounts[1] }), 'Ownable: caller is not the owner')
         })
 
         it('34th test, nft and apy must>0', async () => {
-            await expectRevert(lpNftStakingFarm.setApyByTokenId(0, 10, { from: accounts[0] }), 'nft and apy must > 0')
-            await expectRevert(lpNftStakingFarm.setApyByTokenId(1, 0, { from: accounts[0] }), 'nft and apy must > 0')
+            await expectRevert(lpNftStakingFarm.setApyByTokenId(umiERC1155.address, 0, 10, { from: accounts[0] }), 'nft and apy must > 0')
+            await expectRevert(lpNftStakingFarm.setApyByTokenId(umiERC1155.address, 1, 0, { from: accounts[0] }), 'nft and apy must > 0')
         })
     })
 
     // test isInWhitelist, Check if nft id is in whitelist.
     describe('Test isInWhitelist', async () => {
         it('35th test, check whiteList correct', async () => {
-            let isIn = await lpNftStakingFarm.isInWhitelist(1)
+            let isIn = await lpNftStakingFarm.isInWhitelist(umiERC1155.address, 1)
             assert.equal(isIn, true);
-            isIn = await lpNftStakingFarm.isInWhitelist(100)
+            isIn = await lpNftStakingFarm.isInWhitelist(umiERC1155.address, 100)
             assert.equal(isIn, false)
         })
     })
@@ -682,11 +694,11 @@ contract('LpNftStakingFarm', async (accounts) => {
             assert.equal(totalApy, 0)
 
             // 4. batch unstake nft of accounts[0]
-            await lpNftStakingFarm.batchUnstakeNfts([1, 2], [1, 1], '0x1111', { from: accounts[0] })
+            await lpNftStakingFarm.batchUnstakeNfts(umiERC1155.address, [1, 2], [1, 1], '0x1111', { from: accounts[0] })
             // 5. check amount of nft id 1
-            let amount = await lpNftStakingFarm.nftBalances(accounts[0], 1)
+            let amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 1)
             assert.equal(amount, 0)
-            amount = await lpNftStakingFarm.nftBalances(accounts[0], 2)
+            amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 2)
             assert.equal(amount, 0)
         })
 
@@ -718,22 +730,22 @@ contract('LpNftStakingFarm', async (accounts) => {
         it('38th test, stake nft, total apy is correct', async () => {
             // total apy of accounts[0] is 33 now, stake nft
             // 1. change apy of nftId1 to 10
-            await lpNftStakingFarm.setApyByTokenId(1, 10)
+            await lpNftStakingFarm.setApyByTokenId(umiERC1155.address, 1, 10)
             // 2. check apy of nft id 1
-            let apyOfNftId1 = await lpNftStakingFarm.nftApys(1)
+            let apyOfNftId1 = await lpNftStakingFarm.nftApys(umiERC1155.address, 1)
             // console.log('38th test, apyOfNftId1=%s', apyOfNftId1)
             assert.equal(apyOfNftId1, 10)
             // 3. stake 1 nft id 1
-            await lpNftStakingFarm.stakeNft(1, 1, '0x111')
+            await lpNftStakingFarm.stakeNft(umiERC1155.address, 1, 1, '0x111')
             // 4. after stake nft, check total apy again, it will be 22
             let totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[0])
             assert.equal(totalApy, 43)
             // 5. stake 1 more nftId1, it will be 53
-            await lpNftStakingFarm.stakeNft(1, 1, '0x111')
+            await lpNftStakingFarm.stakeNft(umiERC1155.address, 1, 1, '0x111')
             totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[0])
             assert.equal(totalApy, 53)
             // 6. batch stake nft, check total apy 53 + 2*10 + 4 * 20=153
-            await lpNftStakingFarm.batchStakeNfts([1, 2], [2, 4], '0x1111')
+            await lpNftStakingFarm.batchStakeNfts(umiERC1155.address, [1, 2], [2, 4], '0x1111')
             totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[0])
             assert.equal(totalApy, 153)
         })
@@ -741,11 +753,11 @@ contract('LpNftStakingFarm', async (accounts) => {
         // ****  Note: until now, accounts[0] staked 4 token whose nft id is 1, staked 4 token whose nft id is 2  ****
         it('39th test, unstake nft, total apy is correct', async () => {
             // 1. unstake 1 nftId1, total apy will be 143
-            await lpNftStakingFarm.unstakeNft(1, 1, '0x1111')
+            await lpNftStakingFarm.unstakeNft(umiERC1155.address, 1, 1, '0x1111')
             let totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[0])
             assert.equal(totalApy, 143)
             // 2. batch unstake all of nft, total apy will be 12 again
-            await lpNftStakingFarm.batchUnstakeNfts([1, 2], [3, 4], '0x1111', { from: accounts[0] })
+            await lpNftStakingFarm.batchUnstakeNfts(umiERC1155.address, [1, 2], [3, 4], '0x1111', { from: accounts[0] })
             totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[0])
             assert.equal(totalApy, 33)
         })
@@ -821,9 +833,9 @@ contract('LpNftStakingFarm', async (accounts) => {
             // 1. before stakeNft, pause
             await lpNftStakingFarm.pause({ from: accounts[0] });
             // 2. stakeNft, it will fail when paused
-            await expectRevert(lpNftStakingFarm.stakeNft(1, 1, '0x1111', { from: accounts[0] }), 'Pausable: paused')
+            await expectRevert(lpNftStakingFarm.stakeNft(umiERC1155.address, 1, 1, '0x1111', { from: accounts[0] }), 'Pausable: paused')
             // 3. check balance of nft token
-            let amount = await lpNftStakingFarm.nftBalances(accounts[0], 1)
+            let amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 1)
             // console.log('43th test, amount of nftId1=%s', amount)
             assert.equal(amount, 0)
             // 4. unpause and stakeNft again
@@ -831,8 +843,8 @@ contract('LpNftStakingFarm', async (accounts) => {
             await time.increase(1)
             await lpNftStakingFarm.unpause({ from: accounts[0] });
             // stake nft again, it will success
-            await lpNftStakingFarm.stakeNft(1, 1, '0x1111', { from: accounts[0] })
-            amount = await lpNftStakingFarm.nftBalances(accounts[0], 1)
+            await lpNftStakingFarm.stakeNft(umiERC1155.address,1, 1, '0x1111', { from: accounts[0] })
+            amount = await lpNftStakingFarm.nftBalances(accounts[0], umiERC1155.address, 1)
             // console.log('43th test, amount of nftId1=%s', amount)
             assert.equal(amount, 1)
         })
@@ -953,13 +965,13 @@ contract('LpNftStakingFarm', async (accounts) => {
             assert.equal(BN(timestamp).toString(), BN(stakeDate).toString())
 
             // 6. check apy of nft
-            let apy = await lpNftStakingFarm.nftApys(1)
+            let apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 1)
             // [nft,apy]->[1,10]
             assert.equal(apy, 10)
-            apy = await lpNftStakingFarm.nftApys(2)
+            apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 2)
             // [nft,apy]->[2,20]
             assert.equal(apy, 20)
-            apy = await lpNftStakingFarm.nftApys(3)
+            apy = await lpNftStakingFarm.nftApys(umiERC1155.address, 3)
             // [nft,apy]->[3,30]
             assert.equal(apy, 30)
 
@@ -970,12 +982,12 @@ contract('LpNftStakingFarm', async (accounts) => {
 
             // 8. one year later, stake nft, total apy, balance will change
             // staked 1 token whose nft id is 1, its apy=10
-            await lpNftStakingFarm.stakeNft(1, 1, '0x1111', { from: accounts[2] })
+            await lpNftStakingFarm.stakeNft(umiERC1155.address, 1, 1, '0x1111', { from: accounts[2] })
 
             // 9. check nft ids array, if nft id exist, total apy
-            let idArray = await lpNftStakingFarm.getUserNftIds(accounts[2])
+            let idArray = await lpNftStakingFarm.getUserNftIds(accounts[2], umiERC1155.address)
             assert.equal(String(idArray), '1')
-            let ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], 1)
+            let ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], umiERC1155.address, 1)
             assert.equal(ifNftIdExist, true)
             // total apy will be 43
             totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[2])
@@ -993,14 +1005,14 @@ contract('LpNftStakingFarm', async (accounts) => {
             console.log('45th test, umiBalanceBeforeStakeNft2=%s', parseWei2Ether(umiBalanceBeforeStakeNft2))
             // *** until now, balance=1000, total apy=43%, stake 1 more nft
             // 11. staked 1 more token whose nft id is 1, its apy=10
-            await lpNftStakingFarm.stakeNft(1, 1, '0x1111', { from: accounts[2] })
+            await lpNftStakingFarm.stakeNft(umiERC1155.address, 1, 1, '0x1111', { from: accounts[2] })
             let umiBalanceAfterStakeNft2 = await lpNftStakingFarm.getUmiBalance(accounts[2])
             console.log('45th test, umiBalanceAfterStakeNft2=%s', parseWei2Ether(umiBalanceAfterStakeNft2))
             // 12. check nft ids array, if nft id exist, total apy again
-            idArray = await lpNftStakingFarm.getUserNftIds(accounts[2])
+            idArray = await lpNftStakingFarm.getUserNftIds(accounts[2], umiERC1155.address)
             // id array will still be 1
             assert.equal(String(idArray), '1')
-            ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], 1)
+            ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], umiERC1155.address, 1)
             assert.equal(ifNftIdExist, true)
             // total apy will be 53
             totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[2])
@@ -1032,16 +1044,16 @@ contract('LpNftStakingFarm', async (accounts) => {
             // 18. mock time increase 
             await time.increase(1)
             // batch stake nfts ids:[2,3]-> values:[2,2]
-            await lpNftStakingFarm.batchStakeNfts([2, 3], [2, 2], '0x1111', { from: accounts[2] })
+            await lpNftStakingFarm.batchStakeNfts(umiERC1155.address, [2, 3], [2, 2], '0x1111', { from: accounts[2] })
             // 19. check nft ids array, if nft id exist, total apy again
-            idArray = await lpNftStakingFarm.getUserNftIds(accounts[2])
+            idArray = await lpNftStakingFarm.getUserNftIds(accounts[2], umiERC1155.address)
             // id array will still be 1
             assert.equal(String(idArray), '1,2,3')
-            ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], 1)
+            ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], umiERC1155.address, 1)
             assert.equal(ifNftIdExist, true)
-            ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], 2)
+            ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], umiERC1155.address, 2)
             assert.equal(ifNftIdExist, true)
-            ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], 3)
+            ifNftIdExist = await lpNftStakingFarm.isNftIdExist(accounts[2], umiERC1155.address, 3)
             assert.equal(ifNftIdExist, true)
             // total apy will be 153, ids: [1,2,3]-> values: [2,2,2]
             totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[2])
@@ -1207,6 +1219,73 @@ contract('LpNftStakingFarm', async (accounts) => {
 
             let interest = parseWei2Ether(umiBalanceAfter) - parseWei2Ether(umiBalance)
             console.log('49th test, principal=1001000 with apy=153%, one year later, interest=%s', interest)
+        })
+    })
+
+    // support multiple erc1155 contracts
+    describe('Test multiple erc1155 contracts', async () => {
+        it('50th test, other erc1155 contract added correct', async () => {
+            // apy of other erc1155 contract is correct
+            const otherNft1Apy = await lpNftStakingFarm.nftApys(otherUmiERC1155.address, 1)
+            assert.equal(otherNft1Apy, 40)
+            const otherNft2Apy = await lpNftStakingFarm.nftApys(otherUmiERC1155.address, 2)
+            assert.equal(otherNft2Apy, 50)
+            const otherNft3Apy = await lpNftStakingFarm.nftApys(otherUmiERC1155.address, 3)
+            assert.equal(otherNft3Apy, 60)
+
+            // nftAddresses is correct
+            const umiERC1155Address = await lpNftStakingFarm.nftAddresses(2)
+            assert.equal(umiERC1155Address, umiERC1155.address)
+            const otherUmiERC1155Address = await lpNftStakingFarm.nftAddresses(3)
+            assert.equal(otherUmiERC1155Address, otherUmiERC1155.address)
+
+            // isNftSupported
+            const umiERC1155AddressSupported = await lpNftStakingFarm.isNftSupported(umiERC1155.address)
+            assert.equal(umiERC1155AddressSupported, true)
+            const otherUmiERC1155AddressSupported = await lpNftStakingFarm.isNftSupported(otherUmiERC1155.address)
+            assert.equal(otherUmiERC1155AddressSupported, true)
+        })
+
+        it('51th test, stake multiple erc1155 contract addresses correct', async () => {
+            let totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[3])
+            assert.equal(totalApy, 0)
+            // stake lpToken
+            await lpTokenMock.approve(lpNftStakingFarm.address, ether('1000'), { from: accounts[3] })
+            await lpNftStakingFarm.stake(ether('1000'), { from: accounts[3] })
+            // stake success, check balance of accounts[3] in lpNftStakingFarm contract
+            let account3Balance = await lpNftStakingFarm.balances(accounts[3])
+            assert.equal(account3Balance, ether('1000'))
+            
+            // after stake lpToken, apy will be 33
+            totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[3])
+            assert.equal(totalApy, 33)
+
+            // stake umiERC1155, nft id=1, apy = 10
+            await umiERC1155.setApprovalForAll(lpNftStakingFarm.address, true, { from: accounts[3] });
+            await lpNftStakingFarm.stakeNft(umiERC1155.address, 1, 1, '0x1111', { from: accounts[3] })
+
+            // check total apy again
+            totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[3])
+            assert.equal(totalApy, 43)
+
+            // stake otherUmiERC1155, nft id=1, apy = 40
+            await otherUmiERC1155.setApprovalForAll(lpNftStakingFarm.address, true, { from: accounts[3] });
+            await lpNftStakingFarm.stakeNft(otherUmiERC1155.address, 1, 1, '0x1111', { from: accounts[3] })
+
+            // check total apy again
+            totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[3])
+            assert.equal(totalApy, 83)
+
+            let account3NftIds = await lpNftStakingFarm.getUserNftIds(accounts[3], otherUmiERC1155.address)
+            assert.equal(String(account3NftIds), '1')
+
+            // unstake nft correct
+            await lpNftStakingFarm.unstakeNft(otherUmiERC1155.address, 1, 1, '0x1111', {from: accounts[3]})
+            totalApy = await lpNftStakingFarm.getTotalApyOfUser(accounts[3])
+            assert.equal(totalApy, 43)
+
+            account3NftIds = await lpNftStakingFarm.getUserNftIds(accounts[3], otherUmiERC1155.address)
+            assert.equal(String(account3NftIds), '')
         })
     })
 

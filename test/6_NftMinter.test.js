@@ -11,6 +11,10 @@ require('chai')
 
 var BN = web3.utils.BN;
 
+let ipfsHash = 'QmPrG6Kq22LjMdJbQZxFgS3xzD9tG4m9VkD3gLnQhYbpoq'
+let ipfsHash2 = 'QmTzogcqAa4YFQPh77wmgfzYawcNzBrmHNb8rJd6Zq1bSt'
+let ipfsPrefix = 'https://ipfs.io/ipfs/'
+
 function ether(n) {
     return web3.utils.toWei(n, 'ether')
 }
@@ -36,7 +40,7 @@ contract('NftMinter', async (accounts) => {
     beforeEach(async () => {
         // first erc20 token
         umiTokenMock = await UmiTokenMock.new()
-        nftMinter = await NftMinter.new('NftMinter', 'Nft', 'https://umi.digital/', umiTokenMock.address)
+        nftMinter = await NftMinter.new('NftMinter', 'Nft', umiTokenMock.address)
         // console.log('UmiTokenMock is deployed to %s', umiTokenMock.address)
         // console.log('NftMinter is deployed to %s', nftMinter.address)
 
@@ -62,11 +66,11 @@ contract('NftMinter', async (accounts) => {
             assert.equal(nftSymbol, 'Nft')
             // 4. uriPrefix is correct
             const uriPrefix = await nftMinter.uriPrefix()
-            assert.equal(uriPrefix, 'https://umi.digital/')
+            assert.equal(uriPrefix, 'https://ipfs.io/ipfs/')
         })
 
         it('2nd test, fail if _umiAddress is incorrect', async () => {
-            await expectRevert(NftMinter.new('NftMinter', 'Nft', 'https://umi.digital/', accounts[0]), '_umiAddress must be contract address')
+            await expectRevert(NftMinter.new('NftMinter', 'Nft', accounts[0]), '_umiAddress must be contract address')
         })
     })
 
@@ -74,7 +78,8 @@ contract('NftMinter', async (accounts) => {
     describe('Test mint', async () => {
         it('3rd test, transfer minting fee failed without approve umi token', async () => {
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await expectRevert(nftMinter.mint(accounts[0], fees, 1, '0x11'), 'ERC20: transfer amount exceeds allowance')
+            console.log('3rd test, ipfsHash=%s', ipfsHash)
+            await expectRevert(nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11'), 'ERC20: transfer amount exceeds allowance')
         })
 
         it('4th test, mint fail when amount incorrect', async () => {
@@ -82,7 +87,7 @@ contract('NftMinter', async (accounts) => {
             // accounts[0] approve 100 tokens to NftMinter
             await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await expectRevert(nftMinter.mint(accounts[0], fees, 0, '0x11'), 'amount should be positive')
+            await expectRevert(nftMinter.mint(accounts[0], fees, 0, ipfsHash, '0x11'), 'amount should be positive')
         })
 
         it('5th test, mint fail when fee recipient is incorrect', async () => {
@@ -90,7 +95,7 @@ contract('NftMinter', async (accounts) => {
             // accounts[0] approve 100 tokens to NftMinter
             await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
             const fees = [[constants.ZERO_ADDRESS, 40], [accounts[4], 60]]
-            await expectRevert(nftMinter.mint(accounts[0], fees, 1, '0x11'), 'Recipient should be present')
+            await expectRevert(nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11'), 'Recipient should be present')
         })
 
         it('6th test, mint fail when fee percent is incorrect', async () => {
@@ -98,7 +103,7 @@ contract('NftMinter', async (accounts) => {
             // accounts[0] approve 100 tokens to NftMinter
             await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
             const fees = [[accounts[3], 0], [accounts[4], 60]]
-            await expectRevert(nftMinter.mint(accounts[0], fees, 1, '0x11'), 'Fee percent should be positive')
+            await expectRevert(nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11'), 'Fee percent should be positive')
         })
 
         it('7th test, mint correct', async () => {
@@ -109,7 +114,7 @@ contract('NftMinter', async (accounts) => {
             let nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 0)
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await nftMinter.mint(accounts[0], fees, 1, '0x11')
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11')
             // after mint success, nft id will be 1
             nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 1)
@@ -131,7 +136,7 @@ contract('NftMinter', async (accounts) => {
             // set minting fee and percent to a low value
             await nftMinter.adjustFee(1)
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await expectRevert(nftMinter.mint(accounts[0], fees, 1, '0x11'), 'umi mintingFee should bigger than 0')
+            await expectRevert(nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11'), 'umi mintingFee should bigger than 0')
             // after mint fail, nft id will be 0
             nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 0)
@@ -141,8 +146,14 @@ contract('NftMinter', async (accounts) => {
     // test uri
     describe('Test uri', async () => {
         it('9th test, uri get correct', async () => {
+            // accounts[0] approve 100 tokens to NftMinter
+            await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
+            const fees = [[accounts[3], 40], [accounts[4], 60]]
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash2, '0x11')
             const token1Uri = await nftMinter.uri(1)
-            assert.equal(token1Uri, 'https://umi.digital/1')
+            const token1IpfsHash = await nftMinter.getIpfsHash(1)
+            assert.equal(token1IpfsHash, ipfsHash2)
+            assert.equal(token1Uri, 'https://ipfs.io/ipfs/' + ipfsHash2)
         })
     })
 
@@ -155,12 +166,12 @@ contract('NftMinter', async (accounts) => {
             let nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 0)
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await nftMinter.mint(accounts[0], fees, 1, '0x11')
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11')
             // after mint success, nft id will be 1
             nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 1)
             // mint again
-            await nftMinter.mint(accounts[0], fees, 1, '0x11')
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11')
             // after mint success, nft id will be 2
             nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 2)
@@ -176,7 +187,7 @@ contract('NftMinter', async (accounts) => {
             // accounts[0] approve 100 tokens to NftMinter
             await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await nftMinter.mint(accounts[0], fees, 1, '0x11')
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11')
             totalSupply = await nftMinter.totalSupply(1)
             assert.equal(totalSupply, 1)
         })
@@ -192,7 +203,7 @@ contract('NftMinter', async (accounts) => {
             // accounts[0] approve 100 tokens to NftMinter
             await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await nftMinter.mint(accounts[0], fees, 1, '0x11')
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11')
             let [totalSupply1, creator1] = await nftMinter.getNftInfo(1)
             assert.equal(totalSupply1, 1)
             assert.equal(creator1, accounts[0].toString())
@@ -208,7 +219,7 @@ contract('NftMinter', async (accounts) => {
             // accounts[0] approve 100 tokens to NftMinter
             await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await nftMinter.mint(accounts[0], fees, 1, '0x11')
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11')
             creator = await nftMinter.getCreator(1)
             assert.equal(creator, accounts[0].toString())
         })
@@ -223,7 +234,7 @@ contract('NftMinter', async (accounts) => {
             // accounts[0] approve 100 tokens to NftMinter
             await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await nftMinter.mint(accounts[0], fees, 1, '0x11')
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11')
             exists = await nftMinter.exists(1)
             assert.equal(exists, true)
         })
@@ -238,7 +249,7 @@ contract('NftMinter', async (accounts) => {
             // accounts[0] approve 100 tokens to NftMinter
             await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await nftMinter.mint(accounts[0], fees, 1, '0x11')
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11')
             ownerOf = await nftMinter.ownerOf(1)
             assert.equal(ownerOf, true)
         })
@@ -249,10 +260,12 @@ contract('NftMinter', async (accounts) => {
         it('16th test, test setUriPrefix correct', async () => {
             // before mint
             let uriPrefix = await nftMinter.uriPrefix()
-            assert.equal(uriPrefix, 'https://umi.digital/')
+            assert.equal(uriPrefix, ipfsPrefix)
             await nftMinter.setUriPrefix('https://umi.digital/new/')
             uriPrefix = await nftMinter.uriPrefix()
             assert.equal(uriPrefix, 'https://umi.digital/new/')
+            // reset uri prefix
+            await nftMinter.setUriPrefix(ipfsPrefix)
         })
 
         it('17th test, setUriPrefix incorrect by non-owner', async () => {
@@ -296,11 +309,11 @@ contract('NftMinter', async (accounts) => {
             // accounts[0] approve 100 tokens to NftMinter
             await umiTokenMock.approve(nftMinter.address, ether('100'), { from: accounts[0] })
             const fees = [[accounts[3], 40], [accounts[4], 60]]
-            await expectRevert(nftMinter.mint(accounts[0], fees, 1, '0x11'), 'Pausable: paused')
+            await expectRevert(nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11'), 'Pausable: paused')
 
             await nftMinter.unpause({from: accounts[0]})
 
-            await nftMinter.mint(accounts[0], fees, 1, '0x11')
+            await nftMinter.mint(accounts[0], fees, 1, ipfsHash, '0x11')
 
             let nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 1)
@@ -317,10 +330,10 @@ contract('NftMinter', async (accounts) => {
             assert.equal(nftId, 0)
             const fees = [[accounts[3], 40], [accounts[4], 60]]
             // mint twice
-            await nftMinter.mint(accounts[0], fees, 10, '0x11')
+            await nftMinter.mint(accounts[0], fees, 10, ipfsHash, '0x11')
             nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 1)
-            await nftMinter.mint(accounts[0], fees, 20, '0x11')
+            await nftMinter.mint(accounts[0], fees, 20, ipfsHash, '0x11')
             nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 2)
         })
@@ -368,10 +381,10 @@ contract('NftMinter', async (accounts) => {
             assert.equal(nftId, 0)
             const fees = [[accounts[3], 40], [accounts[4], 60]]
             // mint twice
-            await nftMinter.mint(accounts[0], fees, 10, '0x11')
+            await nftMinter.mint(accounts[0], fees, 10, ipfsHash, '0x11')
             nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 1)
-            await nftMinter.mint(accounts[0], fees, 20, '0x11')
+            await nftMinter.mint(accounts[0], fees, 20, ipfsHash, '0x11')
             nftId = await nftMinter.getCurrentNftId()
             assert.equal(nftId, 2)
         })
