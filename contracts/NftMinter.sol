@@ -23,6 +23,8 @@ import "./ERC20Interface.sol";
         image: "https://storage.googleapis.com/opensea-prod.appspot.com/creature/3.png",
         name: "nft name"
     }
+
+    ipfs prefix: https://ipfs.io/ipfs/
  */
 contract NftMinter is ERC1155Burnable, ReentrancyGuard, Pausable, Ownable {
     using Address for address;
@@ -79,21 +81,21 @@ contract NftMinter is ERC1155Burnable, ReentrancyGuard, Pausable, Ownable {
     struct NftInfo {
         uint256 tokenSupply;
         address creator;
+        string ipfsHash;
     }
 
     constructor(
         string memory _name,
         string memory _symbol,
-        string memory _uriPrefix,
         address _umiAddress
-    ) ERC1155(_uriPrefix) {
+    ) ERC1155("") {
         require(
             _umiAddress.isContract(),
             "_umiAddress must be contract address"
         );
         name = _name;
         symbol = _symbol;
-        uriPrefix = _uriPrefix;
+        setUriPrefix("https://ipfs.io/ipfs/");
         umiToken = ERC20Interface(_umiAddress);
     }
 
@@ -103,17 +105,19 @@ contract NftMinter is ERC1155Burnable, ReentrancyGuard, Pausable, Ownable {
      * @param _owner The recipient.
      * @param _fees The mintnig fee.(format: [["0x12345678",40],["0x87654321",60]])
      * @param _amount The amount of token.
+     * @param _ipfsHash The ipfs hash of the nft.
      */
     function mint(
         address _owner,
         Fee[] memory _fees,
         uint256 _amount,
+        string memory _ipfsHash,
         bytes memory data
     ) external whenNotPaused nonReentrant {
         require(_amount != 0, "amount should be positive");
 
         // mint nft to the owner
-        uint256 nftId = safeMint(_owner, _amount, data);
+        uint256 nftId = safeMint(_owner, _amount, _ipfsHash, data);
         for (uint256 i = 0; i < _fees.length; i++) {
             require(
                 _fees[i].recipient != address(0x0),
@@ -155,12 +159,13 @@ contract NftMinter is ERC1155Burnable, ReentrancyGuard, Pausable, Ownable {
     function safeMint(
         address owner,
         uint256 amount,
+        string memory _ipfsHash,
         bytes memory data
     ) internal returns (uint256) {
         idCounter.increment();
         uint256 nftId = idCounter.current();
         // set nft info
-        setNftInfo(nftId, amount);
+        setNftInfo(nftId, amount, _ipfsHash);
         _mint(owner, nftId, amount, data);
         // by default, it will send event -> emit TransferSingle(msg.sender, address(0), owner, nftId, amount)
         return nftId;
@@ -169,10 +174,11 @@ contract NftMinter is ERC1155Burnable, ReentrancyGuard, Pausable, Ownable {
     /**
      * Set nft info.
      */
-    function setNftInfo(uint256 _nftId, uint256 _amount) internal {
+    function setNftInfo(uint256 _nftId, uint256 _amount, string memory _ipfsHash) internal {
         NftInfo storage nftInfo = nftInfos[_nftId];
         nftInfo.tokenSupply = _amount;
         nftInfo.creator = msg.sender;
+        nftInfo.ipfsHash = _ipfsHash;
     }
 
     /**
@@ -181,7 +187,7 @@ contract NftMinter is ERC1155Burnable, ReentrancyGuard, Pausable, Ownable {
      * @param nftId The nft id.
      */
     function uri(uint256 nftId) public view override returns (string memory) {
-        return Strings.strConcat(uriPrefix, Strings.uint2str(nftId));
+        return Strings.strConcat(uriPrefix, getIpfsHash(nftId));
     }
 
     /**
@@ -217,6 +223,15 @@ contract NftMinter is ERC1155Burnable, ReentrancyGuard, Pausable, Ownable {
     function getCreator(uint256 nftId) public view returns (address) {
         NftInfo memory nftInfo = getNftInfo(nftId);
         return nftInfo.creator;
+    }
+
+    /**
+     * Get ipfs hash of the nft.
+     * @param nftId The identifier for an NFT.
+     */
+    function getIpfsHash(uint256 nftId) public view returns(string memory) {
+        NftInfo memory nftInfo = getNftInfo(nftId);
+        return nftInfo.ipfsHash;
     }
 
     /**
