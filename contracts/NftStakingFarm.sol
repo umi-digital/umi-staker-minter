@@ -908,11 +908,13 @@ contract NftStakingFarm is
      */
     function initApys() internal onlyOwner {
         // first nft contract
-        // category 1(total 3)
+        // category 1(total 1)
+        nftApys[firstNft][59] = 1;
+        // category 2(total 3)
         nftApys[firstNft][18] = 2;
         nftApys[firstNft][19] = 2;
         nftApys[firstNft][20] = 2;
-        // category 2(total 27)
+        // category 3(total 27)
         nftApys[firstNft][1] = 10;
         nftApys[firstNft][2] = 10;
         nftApys[firstNft][4] = 10;
@@ -940,14 +942,14 @@ contract NftStakingFarm is
         nftApys[firstNft][35] = 10;
         nftApys[firstNft][36] = 10;
         nftApys[firstNft][37] = 10;
-        // category 3(total 4)
+        // category 4(total 4)
         nftApys[firstNft][3] = 20;
         nftApys[firstNft][11] = 20;
         nftApys[firstNft][25] = 20;
         nftApys[firstNft][34] = 20;
-        // category 4(total 1)
+        // category 5(total 1)
         nftApys[firstNft][17] = 30;
-        // category 5(total 7)
+        // category 6(total 7)
         nftApys[firstNft][38] = 40;
         nftApys[firstNft][39] = 40;
         nftApys[firstNft][40] = 40;
@@ -955,14 +957,7 @@ contract NftStakingFarm is
         nftApys[firstNft][42] = 40;
         nftApys[firstNft][43] = 40;
         nftApys[firstNft][44] = 40;
-        // category 6(total 6)
-        nftApys[firstNft][45] = 80;
-        nftApys[firstNft][46] = 80;
-        nftApys[firstNft][47] = 80;
-        nftApys[firstNft][48] = 80;
-        nftApys[firstNft][49] = 80;
-        nftApys[firstNft][50] = 80;
-        // category 7(total9 )
+
         nftApys[firstNft][52] = 40;
         nftApys[firstNft][60] = 40;
         nftApys[firstNft][61] = 40;
@@ -972,13 +967,18 @@ contract NftStakingFarm is
         nftApys[firstNft][65] = 40;
         nftApys[firstNft][66] = 40;
         nftApys[firstNft][67] = 40;
-        // category 8(total 1)
-        nftApys[firstNft][59] = 1;
+        // category 7(total 6)
+        nftApys[firstNft][45] = 80;
+        nftApys[firstNft][46] = 80;
+        nftApys[firstNft][47] = 80;
+        nftApys[firstNft][48] = 80;
+        nftApys[firstNft][49] = 80;
+        nftApys[firstNft][50] = 80;
         
         // second nft contract
-        // category 3(total 1)
+        // category 4(total 1)
         nftApys[secondNft][1] = 20;
-        // category 9(total 20)
+        // category 8(total 20)
         nftApys[secondNft][2] = 102;
         nftApys[secondNft][3] = 102;
         nftApys[secondNft][4] = 102;
@@ -988,17 +988,17 @@ contract NftStakingFarm is
         nftApys[secondNft][8] = 102;
         nftApys[secondNft][9] = 102;
         nftApys[secondNft][10] = 102;
-        nftApys[secondNft][11] = 102;
         nftApys[secondNft][12] = 102;
         nftApys[secondNft][13] = 102;
         nftApys[secondNft][14] = 102;
         nftApys[secondNft][15] = 102;
         nftApys[secondNft][16] = 102;
-        nftApys[secondNft][17] = 102;
         nftApys[secondNft][18] = 102;
         nftApys[secondNft][19] = 102;
         nftApys[secondNft][20] = 102;
         nftApys[secondNft][21] = 102;
+        nftApys[secondNft][22] = 102;
+        nftApys[secondNft][23] = 102;
     }
     
 }

@@ -139,11 +139,11 @@ contract UmiTokenFarm is Context, Ownable, ReentrancyGuard, Pausable {
     uint256 internal DEFAULT_APY = 12; // stand for 12%
     
     /**
-     * @dev Modifier to make a function callable only when the contract is not paused.
+     * @dev Modifier to make a function callable only when the _tokenAddress is contract address.
      *
      * Requirements:
      *
-     * - The contract must not be paused.
+     * - The _tokenAddress must be contract address.
      */
     modifier isContract(address _tokenAddress) {
         require(
