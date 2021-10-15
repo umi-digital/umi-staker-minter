@@ -29,4 +29,13 @@ library Calculator {
         return res;
     }
 
+  function getValueOfRepresentUmi(
+      uint256 stakedLpTokens,
+      uint256 lpTokenTotalSupply,
+      uint112 umiReserve) internal pure returns(uint256) {
+      int128 lpRatio = ABDKMath64x64.divu(stakedLpTokens, lpTokenTotalSupply);
+      uint256 res = ABDKMath64x64.mulu(lpRatio, uint256(umiReserve));
+      return res;
+  }
+
 }

@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Receiver.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import "./ERC20Interface.sol";
+import "./IUniswapV2Pair.sol";
 import "./Calculator.sol";
 import "./erc1155/ERC1155TokenReceiver.sol";
 
@@ -160,7 +161,7 @@ contract LpNftStakingFarm is
     );
 
     // lp token
-    ERC20Interface public lpToken;
+    IUniswapV2Pair public lpToken;
     // rewards token(umi token now)
     ERC20Interface public umiToken;
 
@@ -211,7 +212,7 @@ contract LpNftStakingFarm is
             "must use contract address"
         );
         umiToken = ERC20Interface(_umiAddress);
-        lpToken = ERC20Interface(_lpAddress);
+        lpToken = IUniswapV2Pair(_lpAddress);
         
         nftAddresses.push(firstNft);
         nftAddresses.push(secondNft);
@@ -324,7 +325,7 @@ contract LpNftStakingFarm is
         uint256 balance = balances[msg.sender];
         require(balance > 0, "insufficient funds");
         // calculate total balance with interest(the interest is umi token)
-        (uint256 totalWithInterest, uint256 timePassed) =
+        (uint256 totalWithInterest, uint256 principalOfRepresentUmi, uint256 timePassed) =
             calculateRewardsAndTimePassed(_sender, 0);
         require(
             totalWithInterest > 0 && timePassed > 0,
@@ -338,7 +339,7 @@ contract LpNftStakingFarm is
         totalStaked = totalStaked.sub(balance);
 
         // interest to be paid, rewards is umi token
-        uint256 interest = totalWithInterest.sub(balance);
+        uint256 interest = totalWithInterest.sub(principalOfRepresentUmi);
         uint256 umiInterestAmount = 0;
         if (interest > 0 && totalFunding >= interest) {
             // interest > 0 and total funding is enough to pay interest
@@ -649,13 +650,13 @@ contract LpNftStakingFarm is
         uint256 balance = balances[msg.sender];
         require(balance > 0, "balance should more than 0");
         // calculate total balance with interest
-        (uint256 totalWithInterest, uint256 timePassed) = calculateRewardsAndTimePassed(msg.sender, 0);
+        (uint256 totalWithInterest, uint256 principalOfRepresentUmi, uint256 timePassed) = calculateRewardsAndTimePassed(msg.sender, 0);
         require(
             totalWithInterest > 0 && timePassed >= 0,
             "calculate rewards and TimePassed error"
         );
         // interest to be paid
-        uint256 interest = totalWithInterest.sub(balance);
+        uint256 interest = totalWithInterest.sub(principalOfRepresentUmi);
         require(interest > 0, "claim interest must more than 0");
         require(totalFunding >= interest, "total funding not enough to pay interest");
         // enough to pay interest
@@ -687,14 +688,14 @@ contract LpNftStakingFarm is
             return 0;
         }
         // calculate total balance with interest
-        (uint256 totalWithInterest, uint256 timePassed) =
+        (uint256 totalWithInterest, uint principalOfRepresentUmi, uint256 timePassed) =
             calculateRewardsAndTimePassed(_from, 0);
         require(
             totalWithInterest > 0 && timePassed >= 0,
             "calculate rewards and TimePassed error"
         );
         // return rewards amount
-        return totalWithInterest.sub(balance);
+        return totalWithInterest.sub(principalOfRepresentUmi);
     }
 
     /**
@@ -707,8 +708,9 @@ contract LpNftStakingFarm is
     function calculateRewardsAndTimePassed(address _user, uint256 _amount)
         internal
         view
-        returns (uint256, uint256)
+        returns (uint256, uint256, uint256)
     {
+        // current amount of lp token staked in contract
         uint256 currentBalance = balances[_user];
         uint256 amount = _amount == 0 ? currentBalance : _amount;
         uint256 stakeDate = stakeDates[_user];
@@ -716,13 +718,17 @@ contract LpNftStakingFarm is
         uint256 timePassed = _now().sub(stakeDate);
         if (timePassed < 1 seconds) {
             // if timePassed less than one second, rewards will be 0
-            return (amount, timePassed);
+            return (0, 0, timePassed);
         }
         // get total apy of user
         uint256 totalApy = getTotalApyOfUser(_user);
+        // get lp token total supply
+        uint256 lpTokenTotalSupply = lpToken.totalSupply();
+        (uint112 umiReserve,,) = lpToken.getReserves();
+        uint256 principalOfRepresentUmi = Calculator.getValueOfRepresentUmi(amount, lpTokenTotalSupply, umiReserve);
         uint256 totalWithInterest =
-            Calculator.calculator(amount, timePassed, totalApy);
-        return (totalWithInterest, timePassed);
+            Calculator.calculator(principalOfRepresentUmi, timePassed, totalApy);
+        return (totalWithInterest, principalOfRepresentUmi, timePassed);
     }
 
     /**
@@ -1036,5 +1042,5 @@ contract LpNftStakingFarm is
         nftApys[secondNft][22] = 102;
         nftApys[secondNft][23] = 102;
     }
-    
+
 }

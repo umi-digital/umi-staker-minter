@@ -14,6 +14,7 @@
     "test:lpTokenFarm": "truffle test --network local test/4_LpTokenFarm.test.js",
     "test:lpNftStakingFarm": "truffle test --network local test/5_LpNftStakingFarm.test.js",
     "test:NftMinter":"truffle test --network local test/6_NftMinter.test.js",
+    "test:UniswapV2Pair": "truffle test --network local test/7_UniswapV2Pair.test.js",
     "contract-size": "truffle run contract-size",
     "deploy:local": "truffle migrate --reset --network local",
     "deploy:rinkeby": "truffle migrate --reset --network rinkeby"
